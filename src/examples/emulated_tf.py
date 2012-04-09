@@ -31,7 +31,7 @@ class emulated_tf(object):
         to_be_removed = []
         for input_index in range(len(input_hs_list)):
             (cur_hs,cur_ports) = input_hs_list[input_index]
-            bucket_name = "%s_%s"%(cur_hs.applied_rule_ids[len(cur_hs.applied_rule_ids) - self.n_reapet + 1],cur_ports)
+            bucket_name = "%s_%s"%(cur_hs.applied_rule_ids[len(cur_hs.applied_rule_ids) - self.num_repeat + 1],cur_ports)
             if bucket_name not in hs_buckets.keys():
                 hs_buckets[bucket_name] = [input_index]
             else:
