@@ -1,7 +1,23 @@
 '''
+    <emulates the functionality of multi-table boxes using one transfer function -- Part of HSA Library>
+    Copyright (C) 2012  Stanford University
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+    
 Created on Aug 14, 2011
 
-@author: peymankazemian
+@author: Peyman Kazemian
 '''
 from headerspace.hs import byte_array_list_contained_in
 
@@ -11,9 +27,15 @@ class emulated_tf(object):
         self.switch_id_mul = 100000
         self.port_type_mul = 10000
         self.output_port_const = 2
+        # list of transfer functions emulated by this class
         self.tf_list = []
         self.num_repeat = n_reapet
+        # which stage of TF is FWD engine. starting from 0
+        self.fwd_engine_stage = 1
         self.length = 0
+        
+    def set_fwd_engine_stage(self,stage):
+        self.fwd_engine_stage = stage
         
     def set_switch_id_multiplier(self,m):
         self.switch_id_mul = m
@@ -31,7 +53,7 @@ class emulated_tf(object):
         to_be_removed = []
         for input_index in range(len(input_hs_list)):
             (cur_hs,cur_ports) = input_hs_list[input_index]
-            bucket_name = "%s_%s"%(cur_hs.applied_rule_ids[len(cur_hs.applied_rule_ids) - self.num_repeat + 1],cur_ports)
+            bucket_name = "%s_%s"%(cur_hs.applied_rule_ids[len(cur_hs.applied_rule_ids) - self.fwd_engine_stage -1],cur_ports)
             if bucket_name not in hs_buckets.keys():
                 hs_buckets[bucket_name] = [input_index]
             else:
@@ -58,10 +80,9 @@ class emulated_tf(object):
         tf = self.tf_list[sw_id]
         phase = [(hs,[port])]
         for i in range(0,self.num_repeat):
+            #print "we are in phase %d - input is %s at port %d"%(i,hs,port)
             tmp = []
-            prt = 0
             for (hs,port_list) in phase:
-                prt += len(port_list)
                 for p in port_list:
                     tmp.extend(tf.T(hs,p))
             phase = tmp

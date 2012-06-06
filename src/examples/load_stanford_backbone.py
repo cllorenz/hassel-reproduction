@@ -1,7 +1,23 @@
 '''
+    <Loads Stanford backbone network into appropriate objects (e.g. emulated_tf)>
+    Copyright (C) 2012  Stanford University
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+    
 Created on Aug 13, 2011
 
-@author: peymankazemian
+@author: Peyman Kazemian
 '''
 from headerspace.tf import *
 from headerspace.hs import *
@@ -9,6 +25,7 @@ from headerspace.nu_smv_generator import *
 from examples.emulated_tf import *
 from config_parser.helper import dotted_ip_to_int
 from config_parser.cisco_router_parser import ciscoRouter
+from config_parser.helper import compose_standard_rules
 
 rtr_names = ["bbra_rtr",
              "bbrb_rtr",
@@ -29,20 +46,55 @@ rtr_names = ["bbra_rtr",
              ]
 
 def load_stanford_backbone_ntf():
+    '''
+    Loads Stanford backbone network transfer functions into an emulated_tf object with 3 layers.
+    '''
     emul_tf = emulated_tf(3)
+    emul_tf.set_fwd_engine_stage(1)
     for rtr_name in rtr_names:
         f = TF(1)
         f.load_object_from_file("tf_stanford_backbone/%s.tf"%rtr_name)
         f.activate_hash_table([15,14])
         emul_tf.append_tf(f)
+    emul_tf.length = f.length
     return emul_tf
 
 def load_stanford_backbone_ttf():
+    '''
+    Loads Stanford backbone topology transfer functions into a transfer function object
+    '''
     f = TF(1)
     f.load_object_from_file("tf_stanford_backbone/backbone_topology.tf")
     return f
     
+def load_stanford_ip_fwd_ntf():
+    '''
+    Loads IP forwarding part of Stanford backbone network transfer functions into an emulated_tf object with 1 layer.
+    '''
+    emul_tf = emulated_tf(1)
+    emul_tf.set_fwd_engine_stage(0)
+    emul_tf.output_port_const = 0
+    for rtr_name in rtr_names:
+        f = TF(1)
+        f.load_object_from_file("tf_simple_stanford_backbone/%s.tf"%rtr_name)
+        #f.activate_hash_table([3,2])
+        emul_tf.append_tf(f)
+    emul_tf.length = f.length
+    return emul_tf
+
+def load_stanford_ip_fwd_ttf():
+    '''
+    Loads Stanford backbone topology transfer functions into a transfer function object.
+    this should be used together with load_stanford_ip_fwd_ntf.
+    '''
+    f = TF(1)
+    f.load_object_from_file("tf_simple_stanford_backbone/backbone_topology.tf")
+    return f
+
 def load_port_to_id_map(path):
+    '''
+    load the map from port ID to name of box-port name.
+    '''
     f = open("%s/port_map.txt"%path,'r')
     id_to_name = {}
     map = {}
@@ -64,6 +116,9 @@ def load_stanford_backbone_port_to_id_map():
     return load_port_to_id_map("tf_stanford_backbone")
     
 def load_replicated_stanford_network(replicate,path):
+    '''
+    Load the transfer functions created by generate_augmented_stanford_backbone_tf.py
+    '''
     ttf = TF(1)
     ttf.load_object_from_file("%s/backbone_topology.tf"%path)
     (name_to_id,id_to_name) = load_port_to_id_map(path)
@@ -198,6 +253,10 @@ def get_end_ports(name_to_id,index):
     return end_ports
         
 def load_tf_to_nusmv():
+    '''
+    For Model Checking Project.
+    Creates NuSMV file from transfer function objects of Stanford network.
+    '''
     nusmv = NuSMV()
     cs = ciscoRouter(1)
     nusmv.set_output_port_offset(cs.PORT_TYPE_MULTIPLIER * cs.OUTPUT_PORT_TYPE_CONST)
@@ -216,6 +275,10 @@ def load_tf_to_nusmv():
     return nusmv
 
 def load_augmented_tf_to_nusmv(replication_factor,dir_path):
+    '''
+    For Model Checking Project.
+    Creates NuSMV file from transfer function objects of replicated Stanford network.
+    '''
     nusmv = NuSMV()
     cs = ciscoRouter(1)
     nusmv.set_output_port_offset(cs.PORT_TYPE_MULTIPLIER * cs.OUTPUT_PORT_TYPE_CONST)
@@ -239,61 +302,12 @@ def load_augmented_tf_to_nusmv(replication_factor,dir_path):
     nusmv.generate_nusmv_input()
     
     return nusmv
-    
-    
-def compose_standard_rules(rule1,rule2):
-
-    mid_ports = [val for val in rule2["in_ports"] if val in rule1["out_ports"]]
-    if len(mid_ports) == 0:
-        return None
-    
-    ### finding match
-    #rule 2 is a link rule
-    if rule2["match"] == None:
-        match = bytearray(rule1["match"])
-    else:
-        # if rule 1 is a fwd or link rule
-        if rule1["mask"] == None:
-            # if rule 1 is a link rule
-            if rule1["match"] == None:
-                match = bytearray(rule2["match"])
-            else:
-                match = byte_array_intersect(rule2["match"],rule1["match"])
-        # if rule 1 is a rewrite rule
-        else:
-            match_inv = byte_array_or(byte_array_and(rule2["match"],rule1['mask']),rule1['inverse_rewrite'])
-            match = byte_array_intersect(match_inv,rule1["match"])
-    if len(match) == 0:
-        return None
-    
-    ### finding mask and rewrite
-    mask = None
-    rewrite = None
-    if rule2["mask"] == None:
-        mask = rule1["mask"]
-        rewrite = rule1["rewrite"]
-    elif rule1["mask"] == None:
-        mask = rule2["mask"]
-        rewrite = rule2["rewrite"]
-    else:
-        # mask = mask1 & mask2
-        # rewrite = (rewrite1 & mask2) | (rewrite2 & !mask2)
-        mask = byte_array_and(rule1["mask"],rule2["mask"])
-        rewrite = byte_array_or(byte_array_and(rule1["rewrite"],rule2["mask"]),byte_array_and(rule2["rewrite"],byte_array_not(rule2["mask"])))
-    in_ports = rule1["in_ports"]
-    out_ports = rule2["out_ports"]
-    
-    if rule1["file"] == rule2["file"]:
-        file_name = rule1["file"]
-    else:
-        file_name = "%s , %s"%(rule1["file"],rule2["file"])
-    
-    lines = rule1["line"]
-    lines.extend(rule2["line"])
-    result_rule = TF.create_standard_rule(in_ports, match, out_ports, mask, rewrite, file_name, lines)
-    return result_rule
 
 def generate_stanford_backbne_one_layer_tf():
+    '''
+    Tries to merge the 3 layers of transfer function into one layer.
+    WARNING: the result will be huge.
+    '''
     for rtr_name in rtr_names:
         f = TF(1)
         f.load_object_from_file("tf_stanford_backbone/%s.tf"%rtr_name)
@@ -323,10 +337,5 @@ def generate_stanford_backbne_one_layer_tf():
                         f.add_rewrite_rule(r)
         f.save_object_to_file("tf_stanford_backbone/%s_one_layer.tf"%rtr_name)
        
-def convert_tf_to_of_rules():
-    for rtr_name in rtr_names:
-        f = TF(1)
-        f.load_object_from_file("tf_stanford_backbone/%s.tf"%rtr_name) 
-        for rule in f.rules:
             
     

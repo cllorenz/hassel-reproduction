@@ -1,12 +1,29 @@
 '''
+    <Helper functions used in Cisco IOS parser -- Part of HSA Library>
+    Copyright (C) 2012  Stanford University
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+    
 Created on Jun 1, 2011
 
-@author: peymankazemian
+@author: Peyman Kazemian
 '''
 
 import re
 from math import pow
-from headerspace.hs import byte_array_get_bit, byte_array_set_bit, byte_array_to_hs_string
+from headerspace.hs import *
+from headerspace.tf import TF
     
 def is_ip_address(str):
     ips = re.match('(?:[\d]{1,3})\.(?:[\d]{1,3})\.(?:[\d]{1,3})\.(?:[\d]{1,3})', str)
@@ -190,3 +207,55 @@ def compress_ip_list(ip_list):
     root.output_compressed(32, 0, result)
     return result
         
+        
+def compose_standard_rules(rule1,rule2):
+
+    mid_ports = [val for val in rule2["in_ports"] if val in rule1["out_ports"]]
+    if len(mid_ports) == 0:
+        return None
+    
+    ### finding match
+    #rule 2 is a link rule
+    if rule2["match"] == None:
+        match = bytearray(rule1["match"])
+    else:
+        # if rule 1 is a fwd or link rule
+        if rule1["mask"] == None:
+            # if rule 1 is a link rule
+            if rule1["match"] == None:
+                match = bytearray(rule2["match"])
+            else:
+                match = byte_array_intersect(rule2["match"],rule1["match"])
+        # if rule 1 is a rewrite rule
+        else:
+            match_inv = byte_array_or(byte_array_and(rule2["match"],rule1['mask']),rule1['inverse_rewrite'])
+            match = byte_array_intersect(match_inv,rule1["match"])
+    if len(match) == 0:
+        return None
+    
+    ### finding mask and rewrite
+    mask = None
+    rewrite = None
+    if rule2["mask"] == None:
+        mask = rule1["mask"]
+        rewrite = rule1["rewrite"]
+    elif rule1["mask"] == None:
+        mask = rule2["mask"]
+        rewrite = rule2["rewrite"]
+    else:
+        # mask = mask1 & mask2
+        # rewrite = (rewrite1 & mask2) | (rewrite2 & !mask2)
+        mask = byte_array_and(rule1["mask"],rule2["mask"])
+        rewrite = byte_array_or(byte_array_and(rule1["rewrite"],rule2["mask"]),byte_array_and(rule2["rewrite"],byte_array_not(rule2["mask"])))
+    in_ports = rule1["in_ports"]
+    out_ports = rule2["out_ports"]
+    
+    if rule1["file"] == rule2["file"]:
+        file_name = rule1["file"]
+    else:
+        file_name = "%s , %s"%(rule1["file"],rule2["file"])
+    
+    lines = rule1["line"]
+    lines.extend(rule2["line"])
+    result_rule = TF.create_standard_rule(in_ports, match, out_ports, mask, rewrite, file_name, lines)
+    return result_rule

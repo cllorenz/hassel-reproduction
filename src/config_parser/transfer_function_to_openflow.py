@@ -1,12 +1,31 @@
 '''
+    <Converts transfer function object to a set of equivalent OpenFlow rules -- Part of HSA Library>
+    Copyright (C) 2012  Stanford University
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+    
 Created on Mar 27, 2012
 
-@author: peymankazemian
+@author: Peyman Kazemian
 '''
 
 from headerspace.hs import *
 from headerspace.tf import *
 from config_parser.cisco_router_parser import *
+import json
+
+from httplib import HTTPMessage
 
 class OpenFlow_Rule_Generator(object):
     
@@ -24,41 +43,58 @@ class OpenFlow_Rule_Generator(object):
         right_wc can be True for IP fields and False for non-IP fields. It indicates wther thsi field should be treated
         as a right-hand masked field or not.
         '''
-        values = []
+        
         wildcards = []
         if right_wc:
             found_right_wc = -1
+            values = []
         else:
             found_right_wc = 0
+            values = [0]
         for i in range (len(field)):
             for j in range (4):
                 next_bit = (field[i] >> (2*j)) & 0x03
                 if right_wc and found_right_wc == -1 and next_bit != 0x03:
                     # detect when we have scanned all right wildcarded bits
-                    found_right_wc = j + i*4 + 1
+                    found_right_wc = j + i*4
                     values.append(0)
                 new_values = []
                 for value in values:
-                    if (next_bit == 0x02 or next_bit == 0x03) and found_right_wc != -1:
+                    #if (next_bit == 0x02 or next_bit == 0x03) and found_right_wc != -1:
+                    #    new_values.append(value + 2**(j + i*4))
+                    #if (next_bit == 0x01 or next_bit == 0x03) and found_right_wc != -1:
+                    #    new_values.append(value)
+                    if next_bit == 0x02 and found_right_wc != -1:
                         new_values.append(value + 2**(j + i*4))
-                    if (next_bit == 0x01 or next_bit == 0x03) and found_right_wc != -1:
+                    elif next_bit == 0x01 and found_right_wc != -1:
                         new_values.append(value)
-                values = new_values
-                
-        return [values,found_right_wc]
+                    elif next_bit == 0x03 and found_right_wc != -1:
+                        # HACK: to avoid explosion of OF rules, we treat non-right side wildcards 
+                        # on IP addresses or wildcard bits on non-IP addresses as 0
+                        new_values.append(value)
+                        
+                values = new_values 
+        return [values[0],found_right_wc]
     
     def find_new_field(self,field_match,field_mask,field_rewrite):
         '''
         finds out the new value for this field. If it is unknown (i.e. there are wildcard bits in it)
         it returns None.
         '''
+        all_masked = True
+        for i in range (len(field_mask)):
+            if (field_mask[i] != 0xaa):
+                all_masked = False
+        if (all_masked):
+            return None
+        
         new_byte_array = byte_array_or(byte_array_and(field_match,field_mask),field_rewrite)
         value = 0
         for i in range (len(new_byte_array)):
             for j in range (4):
                 next_bit = (new_byte_array[i] >> (2*j)) & 0x03
                 if next_bit == 0x03:
-                    print "ERROR: Unexpected rewrite action. Ignored."
+                    print "ERROR: Unexpected rewrite action. Ignored. %s - %s - %s - %s"%(byte_array_to_hs_string(field_match),byte_array_to_hs_string(field_mask),byte_array_to_hs_string(field_rewrite),byte_array_to_hs_string(new_byte_array))
                     return None
                 elif next_bit == 0x02:
                     value = value + 2**(4*i+j)
@@ -98,7 +134,8 @@ class OpenFlow_Rule_Generator(object):
                     openflow_entry["%s_wc"%field] = 32
                 else:
                     openflow_entry["%s_wc"%field] = 1
-                openflow_entry["%s_match"%field] = [0]
+                #openflow_entry["%s_match"%field] = [0]
+                openflow_entry["%s_match"%field] = 0
             else:
                 if field == "ip_src" or field == "ip_dst":
                     parsed = self.parse_non_wc_field(field_match, True)
@@ -111,20 +148,30 @@ class OpenFlow_Rule_Generator(object):
                 openflow_entry["%s_new"%field] = self.find_new_field(field_match,field_mask,field_rewrite)
             else:
                 openflow_entry["%s_new"%field] = None
+                
+            openflow_entry["in_ports"] = rule["in_ports"]
+            openflow_entry["out_ports"] = rule["out_ports"]
         
         return openflow_entry
     
-    def generate_of_rules(self):
+    def generate_of_rules(self,filename):
+        f = open("../examples/stanford_openflow_rules/%s"%filename,'w')
+        rules = []
         for rule in self.tf.rules:
             of_rule = self.parse_rule(rule)
-            print of_rule
+            rules.append(of_rule)
+            
+        f.write("{\"rules\":")
+        f.write(json.dumps(rules))
+        f.write("}")
+        f.close()
             
 
 def main():
     f = TF(1)
     f.load_object_from_file("../examples/tf_stanford_backbone/bbra_rtr.tf")
     OFG = OpenFlow_Rule_Generator(f,ciscoRouter(1).HS_FORMAT())
-    OFG.generate_of_rules()
+    OFG.generate_of_rules("bbra_rtr.of")
     
 if __name__ == "__main__":
     main()

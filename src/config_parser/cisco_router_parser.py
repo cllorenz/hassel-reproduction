@@ -1,7 +1,24 @@
 '''
+    <Cisco IOS parser. Generates Transfer Function Objects -- Part of HSA Library>
+    Copyright (C) 2012  Stanford University
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 Created on May 11, 2011
 
-@author: peymankazemian
+@author: Peyman Kazemian
+@author: James Hongyi Zeng
 '''
 from helper import *
 from headerspace.tf import *
@@ -39,16 +56,22 @@ class ciscoRouter(object):
         # arp and mac table
         self.arp_table = {}
         self.mac_table = {}
-        # for each interface, we have (access-list#, in/out, file, line)
+        # for each access-list#, we have (interface, in/out, vlan, file, line)
         self.acl_iface = {}
         # list of vlans configured on this switch
         self.config_vlans = []
         # list of ports configured on this switch
         self.config_ports = set()
+        #trunk or access mode of all physical ports
+        self.vlan_mode = {}
         self.switch_id = switch_id
         self.port_to_id = {}
         self.hs_format = self.HS_FORMAT()
         self.replaced_vlan = 0
+        self.def_vlan = 1
+        
+    def set_default_vlan(self,vlan):
+        self.def_vlan = vlan
         
     def set_replaced_vlan(self,vlan):
         self.replaced_vlan = vlan
@@ -412,6 +435,10 @@ class ciscoRouter(object):
                     self.config_ports.add(last_iface)
                 if last_vlan != None and "%d"%last_vlan not in self.port_subnets.keys():
                     self.port_subnets["%d"%last_vlan] = []
+            elif line.startswith("switchport mode"):
+                tokens = line.split()
+                vlan_mode = tokens[2]
+                self.vlan_mode[last_iface] = vlan_mode
             elif line.startswith("ip access-group"):
                 tokens = line.split()
                 if not tokens[2] in self.acl_iface.keys():
@@ -563,6 +590,9 @@ class ciscoRouter(object):
         s = set(additional_ports)
         for elem in self.config_ports:
             s.add(elem)
+        for vlan in self.vlan_ports.keys():
+            for elem in self.vlan_ports[vlan]:
+                s.add(elem)
         suffix = 1
         for p in s:
             id = self.switch_id * self.SWITCH_ID_MULTIPLIER + suffix * self.PORT_ID_MULTIPLIER
@@ -570,6 +600,26 @@ class ciscoRouter(object):
             suffix += 1
         #print self.port_to_id
         print "=== DONE generating port IDs ==="
+        
+    def generate_port_ids_only_for_output_ports(self):
+        s = set()
+        for fwd_rule in self.fwd_table:
+            m = re.split('\.',fwd_rule[2])
+            if len(m) > 1:
+                s.add(m[0])
+            elif fwd_rule[2].startswith('vlan'):
+                if fwd_rule[2] in self.vlan_ports.keys():
+                    port_list = self.vlan_ports[fwd_rule[2]]
+                    for p in port_list:
+                        s.add(p)
+            elif fwd_rule[2] != "self":
+                s.add(fwd_rule[2])
+            suffix = 1
+        for p in s:
+            id = self.switch_id * self.SWITCH_ID_MULTIPLIER + suffix * self.PORT_ID_MULTIPLIER
+            self.port_to_id[p] = id
+            suffix += 1
+
         
     def get_port_id(self,port_name):
         if port_name in self.port_to_id.keys():
@@ -601,7 +651,7 @@ class ciscoRouter(object):
         ''' 
         print "=== Generating Transfer Function ==="
         # generate the input part of tranfer function from in_port to fwd_port
-        # and output part from intermedite ports to output ports
+        # and output part from intermedite port s to output ports
         print " * Generating ACL transfer function * " 
         for acl in self.acl_iface.keys():
             if acl not in self.acl.keys():
@@ -609,10 +659,13 @@ class ciscoRouter(object):
             for acl_instance in self.acl_iface[acl]:
                 file_name = acl_instance[3]
                 specified_ports = []
+                access_ports = []
                 vlan = acl_instance[2]
                 if acl_instance[0].startswith("vlan"):
                     for p in self.vlan_ports[acl_instance[0]]:
                         specified_ports.append(self.port_to_id[p])
+                        if p in self.vlan_mode.keys() and self.vlan_mode[p] == "access":
+                            access_ports.append(self.port_to_id[p])
                 else:
                     specified_ports = [self.port_to_id(acl_instance[0])]
                 for acl_dic_entry in self.acl[acl]:
@@ -626,9 +679,20 @@ class ciscoRouter(object):
                         if (acl_dic_entry["action"]):
                             out_ports = [self.switch_id * self.SWITCH_ID_MULTIPLIER]
                         for match in matches:
+                            # IN ACL for VLAN tagged packets going to trunk or access ports
                             self.set_field(match, "vlan", vlan, 0)
                             next_rule = TF.create_standard_rule(in_ports, match, out_ports, None, None, file_name, lines)
                             tf.add_fwd_rule(next_rule)
+                            # IN ACL for un-vlan tagged packets going to access ports. If there is any access port, 
+                            # we should accept untagged packets, and tag them with the corresponding VLAN tag.
+                            if (len(access_ports) > 0):
+                                self.set_field(match, "vlan", 0, 0)
+                                mask = byte_array_get_all_one(self.hs_format["length"]*2)
+                                rewrite = byte_array_get_all_zero(self.hs_format["length"]*2)
+                                self.set_field(mask, 'vlan', 0, 0)
+                                self.set_field(rewrite, 'vlan', vlan, 0)
+                                next_rule = TF.create_standard_rule(access_ports, match, out_ports, mask, rewrite, file_name, lines)
+                                tf.add_fwd_rule(next_rule)
                     # out acl entry
                     else:
                         for match in matches:
@@ -644,31 +708,96 @@ class ciscoRouter(object):
                                 for port in specified_ports:
                                     in_ports = [port+self.PORT_TYPE_MULTIPLIER * self.INTERMEDIATE_PORT_TYPE_CONST]
                                     out_ports = [port+self.PORT_TYPE_MULTIPLIER * self.OUTPUT_PORT_TYPE_CONST]
-                                    next_rule = TF.create_standard_rule(in_ports, match, out_ports, None, None, file_name, lines)
+                                    if port in access_ports:
+                                        # If sending out from an access port, strip the VLAN tag
+                                        mask = byte_array_get_all_one(self.hs_format["length"]*2)
+                                        rewrite = byte_array_get_all_zero(self.hs_format["length"]*2)
+                                        self.set_field(mask, 'vlan', 0, 0)
+                                        self.set_field(rewrite, 'vlan', 0, 0)
+                                        next_rule = TF.create_standard_rule(in_ports, match, out_ports, mask, rewrite, file_name, lines)
+                                    else:
+                                        next_rule = TF.create_standard_rule(in_ports, match, out_ports, None, None, file_name, lines)
                                     tf.add_fwd_rule(next_rule)
         
         # default rule for all vlans configured on this switch and un-vlan-tagged ports
         intermediate_port = [self.switch_id * self.SWITCH_ID_MULTIPLIER]
-        for cnf_vlan in self.config_vlans:
+        vlan_ports = set()
+        trunk_ports = set()
+        for vlan_name in self.vlan_ports.keys():
+            cnf_vlan = int(vlan_name[4:])
             if self.vlan_ports.has_key("vlan%d"%cnf_vlan):
                 match = byte_array_get_all_x(self.hs_format["length"]*2)
                 self.set_field(match, "vlan", cnf_vlan, 0)
                 all_in_ports = []
+                access_ports = []
                 for port in self.vlan_ports["vlan%d"%cnf_vlan]:
                     all_in_ports.append(self.port_to_id[port])
+                    vlan_ports.add(self.port_to_id[port])
+                    if port in self.vlan_mode.keys() and self.vlan_mode[port] == "access":
+                        access_ports.append(self.port_to_id[port])
+                    else:
+                        trunk_ports.add(self.port_to_id[port])
+                # default rule for vlan tagged packets arriving on access and trunk port   
                 def_rule = TF.create_standard_rule(all_in_ports, match, intermediate_port, None, None, "", [])
                 tf.add_fwd_rule(def_rule)
+                # default rule for un-vlan tagged packets received on access port
+                if (len(access_ports) > 0):
+                    match = byte_array_get_all_x(self.hs_format["length"]*2)
+                    self.set_field(match, "vlan", 0, 0)
+                    mask = byte_array_get_all_one(self.hs_format["length"]*2)
+                    rewrite = byte_array_get_all_zero(self.hs_format["length"]*2)
+                    self.set_field(mask, 'vlan', 0, 0)
+                    self.set_field(rewrite, 'vlan', cnf_vlan, 0)
+                    def_rule = TF.create_standard_rule(access_ports, match, intermediate_port, mask, rewrite, "", [])
+                    tf.add_fwd_rule(def_rule)
+                
+                #default rules for outgoing packets
+                for port_id in all_in_ports:
+                    match = byte_array_get_all_x(self.hs_format["length"]*2)
+                    mask = byte_array_get_all_one(self.hs_format["length"]*2)
+                    rewrite = byte_array_get_all_zero(self.hs_format["length"]*2)
+                    before_out_port = [port_id+self.PORT_TYPE_MULTIPLIER * self.INTERMEDIATE_PORT_TYPE_CONST]
+                    after_out_port = [port_id+self.PORT_TYPE_MULTIPLIER * self.OUTPUT_PORT_TYPE_CONST]
+                    # default rule for vlan tagged packets leaving access ports
+                    if port_id in access_ports:
+                        self.set_field(match, "vlan", cnf_vlan, 0)
+                        self.set_field(mask, 'vlan', 0, 0)
+                        self.set_field(rewrite, 'vlan', 0, 0)
+                        def_rule = TF.create_standard_rule(before_out_port, match, after_out_port , mask, rewrite, "", [])
+                        tf.add_rewrite_rule(def_rule)
+                    # default rule for vlan tagged packets leaving trunk ports
+                    else:
+                        self.set_field(match, "vlan", cnf_vlan, 0)
+                        def_rule = TF.create_standard_rule(before_out_port, match, after_out_port , None, None, "", [])
+                        tf.add_fwd_rule(def_rule)
+                
+        #defult rule for unvaln-tagged packets received on an trunk port 
+        if (len(trunk_ports) > 0):
+            match = byte_array_get_all_x(self.hs_format["length"]*2)
+            self.set_field(match, "vlan", 0, 0)
+            mask = byte_array_get_all_one(self.hs_format["length"]*2)
+            rewrite = byte_array_get_all_zero(self.hs_format["length"]*2)
+            self.set_field(mask, 'vlan', 0, 0)
+            self.set_field(rewrite, 'vlan', self.def_vlan, 0)
+            def_rule = TF.create_standard_rule(list(trunk_ports), match, intermediate_port, mask, rewrite, "", [])
+            tf.add_fwd_rule(def_rule)
+                
         # ... un-vlan-tagged port
         all_in_ports = []
         for port in self.port_to_id.keys():
             if port != "self":
                 all_in_ports.append(self.port_to_id[port])
-        match = byte_array_get_all_x(self.hs_format["length"]*2)
-        self.set_field(match, "vlan", 0, 0)
-        def_rule = TF.create_standard_rule(all_in_ports, match, intermediate_port, None, None, "", [])
-        tf.add_fwd_rule(def_rule) 
+        for port in vlan_ports:
+            all_in_ports.remove(port)
+            
+        # default rule for un-tagged packets from input port to forwarding engine
+        if (len(all_in_ports) > 0):
+            match = byte_array_get_all_x(self.hs_format["length"]*2)
+            self.set_field(match, "vlan", 0, 0)
+            def_rule = TF.create_standard_rule(all_in_ports, match, intermediate_port, None, None, "", [])
+            tf.add_fwd_rule(def_rule) 
         
-        # default rule from intermediate port to outut port
+        # default rule for un-tagged packets from intermediate port to outut port
         match = byte_array_get_all_x(self.hs_format["length"]*2)
         for port_id in all_in_ports:
             before_out_port = [port_id+self.PORT_TYPE_MULTIPLIER * self.INTERMEDIATE_PORT_TYPE_CONST]
@@ -767,6 +896,7 @@ class ciscoRouter(object):
         print "=== Successfully Generated Transfer function ==="
         #print tf
         return 0
-                    
+    
+ 
         
         
