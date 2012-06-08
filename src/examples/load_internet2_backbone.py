@@ -38,7 +38,7 @@ rtr_names = ["atla",
              ]
 
 def load_internet2_backbone_ntf():
-    emul_tf = emulated_tf(2)
+    emul_tf = emulated_tf(2, False)
 #    i = 0
     
 #    for rtr_name in rtr_names:

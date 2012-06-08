@@ -45,14 +45,6 @@ def find_reachability_multiprocess(in_port, input_pkt):
         #get the next node in propagation graph and apply it to NTF and TTF
         print "Propagation has length: %d"%len(propagation)
         
-        #pool = Pool()
-        
-        #result = pool.map_async(two_step, propagation)
-        #pool.close()
-        #pool.join()
-
-        #results = [two_step(p_node, out_ports, propagation.index(p_node), len(propagation)) for p_node in propagation]
-        
         results = map(two_step, propagation)
         
         tmp_propagate = []
@@ -60,11 +52,6 @@ def find_reachability_multiprocess(in_port, input_pkt):
             (local_propagation, local_paths) = result
             tmp_propagate.extend(local_propagation)
             paths.extend(local_paths)
-        
-        f = open("result.txt", "w")
-        for p_node in tmp_propagate:
-            f.write("[%d]%s\n" % (p_node["port"],p_node["hdr"]))
-        f.close()
         
         propagation = tmp_propagate
                 
@@ -75,21 +62,9 @@ def two_step (p_node):
     propagation = []
     paths = []
     
-    #print "Two_Step: %d/%d" % (index, total)
-    
     next_hp = ntf_global.T(p_node["hdr"],p_node["port"])
     for (next_h,next_ps) in next_hp:    
-        #pool_inner = Pool()
-        #results = [pool_inner.apply_async(one_step, (p_node, next_h, next_p, out_ports)) for next_p in next_ps]
-        
-        #pool_inner.close()
-        #pool_inner.join()
-#        results = [one_step(p_node, next_h, next_p, dst_port_ids_global) for next_p in next_ps]
-#        
-#        for result in results:
-#            (local_propagation, local_paths) = result
-#            propagation.extend(local_propagation)
-#            paths.extend(local_paths)
+
         for next_p in next_ps:
             if next_p in dst_port_ids_global:
                 reached = {}
@@ -124,43 +99,6 @@ def two_step (p_node):
                             propagation.append(new_p_node)
 
     return (propagation, paths)
-
-def one_step (p_node, next_h, next_p, out_ports):
-    
-    propagation = []
-    paths = []
-    if next_p in out_ports:
-        reached = {}
-        reached["hdr"] = next_h
-        reached["port"] = next_p
-        reached["visits"] = reached["visits"]+[p_node["port"]]
-        #reached["visits"] = list(p_node["visits"])
-        #reached["visits"].append(p_node["port"])
-        #reached["hs_history"] = list(p_node["hs_history"])
-        paths.append(reached)
-    else:
-        linked = ttf_global.T(next_h,next_p)
-        for (linked_h,linked_ports) in linked:
-            for linked_p in linked_ports:
-                new_p_node = {}
-                new_p_node["hdr"] = linked_h
-                new_p_node["port"] = linked_p
-                new_p_node["visits"] = p_node["visits"]+[p_node["port"]]
-                #new_p_node["visits"].append(p_node["port"])
-                #new_p_node["visits"].append(next_p)
-                #new_p_node["hs_history"] = list(p_node["hs_history"])
-                #new_p_node["hs_history"].append(p_node["hdr"])
-                if linked_p in out_ports:
-                    paths.append(new_p_node)
-                elif linked_p in new_p_node["visits"]:
-                    #loop_count += 1
-                    pass
-                    #print "WARNING: detected a loop - branch aborted: \nHeaderSpace: %s\n Visited Ports: %s\nLast Port %d "%(\
-                    #    new_p_node["hdr"],new_p_node["visits"],new_p_node["port"])
-                else:
-                    #tmp_propagate.append(new_p_node)
-                    propagation.append(new_p_node)
-    return (propagation, paths)
     
 
 def main():
@@ -185,8 +123,8 @@ def main():
     test_pkt = headerspace(ntf_global.length)
     test_pkt.add_hs(all_x)
     
-    src_port_id = port_map["newy32aoa"]["xe-1/1/0"]
-    dst_port_ids_global = [port_map["losa"]["xe-1/0/3"]+output_port_addition]
+    src_port_id = port_map["atla"]["xe-0/1/1"]
+    dst_port_ids_global = [port_map["atla"]["xe-1/0/2"]+output_port_addition]
 
     st = time()
     paths = find_reachability_multiprocess(src_port_id,test_pkt)

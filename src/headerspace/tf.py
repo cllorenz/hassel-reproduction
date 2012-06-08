@@ -505,34 +505,84 @@ class TF(object):
         result = []
         applied_rules = []
         rule_set = []
-        #TODO: Hack! fix it
-        if self.inport_to_rule.has_key("%d"%port) and (not self.hash_table_active or len(hs.hs_list)>1):
-            rule_set = self.inport_to_rule["%d"%port]
-        elif self.hash_table_active and self.inport_to_hash_table.has_key("%d"%port):
-            tmp = []
-            for index in self.hash_nibble_indices:
-                tmp.append(hs.hs_list[0][index])
-            rule_set = self.inport_to_hash_table["%d"%port].find_entry(tmp)
+
+        default_operation = False
+        if self.exact_match_hash_active == True:
+            # James: Implement a Longest Prefix Match below
+            match = bytearray()
+            for index in self.exact_match_indices:
+                match.append(hs.hs_list[0][index]) 
+                
+            match_key_string = byte_array_to_hs_string(match)
+            #for index in xrange(0, len(match_key_string)):
+            #    bit = match_key_string[index]
+            #    if bit == 'x':
+            #        index = index -1
+            #        break
+            
+            index = match_key_string.find('x')
+
+            if index == 0:
+                # All wildcard?
+                default_operation = True
+            elif index != -1:
+                match_key_string = match_key_string[:index]
+                
+        else:
+            default_operation = True
+        
+        if default_operation == False:
+            #print match_key_string
+            
+            try:
+                if len(match_key_string) == len(self.exact_match_indices) * 4:
+                    # Full match
+                    rule_set = self.exact_match_hash["%d"%port][match_key_string] + self.exact_match_hash["%d"%port]["default"]
+                    #print "Exact", len(self.exact_match_hash["%d"%port][match_key_string])
+                    #print "Default", len(self.exact_match_hash["%d"%port]["default"])
+                else:
+                    for key in self.exact_match_hash["%d"%port].keys():
+                        if key.startswith(match_key_string):
+                            rule_set += self.exact_match_hash["%d"%port][key]
+                    rule_set += self.exact_match_hash["%d"%port]["default"]
+                    #print "Wild %d vs %d" % (len(match_key_string), len(self.exact_match_indices) * 4)
+                    #print len(rule_set)
+            except KeyError:
+                rule_set = self.exact_match_hash["%d"%port]["default"]
+        else:
+            #TODO: Hack! fix it    
+            if self.inport_to_rule.has_key("%d"%port) and (not self.hash_table_active or len(hs.hs_list)>1):
+                rule_set = self.inport_to_rule["%d"%port]
+            elif self.hash_table_active and self.inport_to_hash_table.has_key("%d"%port):
+                tmp = []
+                for index in self.hash_nibble_indices:
+                    tmp.append(hs.hs_list[0][index])
+                rule_set = self.inport_to_hash_table["%d"%port].find_entry(tmp)
+        
+        #print "Size of rule_set is %d" % len(rule_set)
+        #if len(rule_set) > 200:
+        #    print port, default_operation, match_key_string, len(rule_set)
+        
         for rule in rule_set:
-                #check if this rule qualifies for lazy evaluation
-                if (self.lazy_eval_active and self.is_qualified_for_lazy_eval(rule)):
-                    lazy_hs = hs.copy()
-                    lazy_hs.add_lazy_tf_rule(self,rule["id"],port)
-                    result.append(lazy_hs,rule["out_ports"])
-                # link rule
-                elif rule['action'] == "link":
-                    result.extend(self.apply_link_rule(rule, hs, port))
-                # rewrite rule
-                elif rule['action'] == "rw":
-                    result.extend(self.apply_rewrite_rule(rule, hs, port,applied_rules))
-                # forward rule
-                elif rule['action'] == "fwd":
-                    result.extend(self.apply_fwd_rule(rule, hs, port,applied_rules))
+            #check if this rule qualifies for lazy evaluation
+            if (self.lazy_eval_active and self.is_qualified_for_lazy_eval(rule)):
+                lazy_hs = hs.copy()
+                lazy_hs.add_lazy_tf_rule(self,rule["id"],port)
+                result.append(lazy_hs,rule["out_ports"])
+            # link rule
+            elif rule['action'] == "link":
+                result.extend(self.apply_link_rule(rule, hs, port))
+            # rewrite rule
+            elif rule['action'] == "rw":
+                result.extend(self.apply_rewrite_rule(rule, hs, port,applied_rules))
+            # forward rule
+            elif rule['action'] == "fwd":
+                result.extend(self.apply_fwd_rule(rule, hs, port,applied_rules))
     
         # custom rules
         for rule in self.custom_rules:
             result.extend(self.apply_custom_rule(rule, hs, port))
-                    
+       
         return result
                 
     def T_rule(self,rule_id,hs,port):

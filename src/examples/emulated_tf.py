@@ -23,7 +23,7 @@ from headerspace.hs import byte_array_list_contained_in
 
 class emulated_tf(object):
     
-    def __init__(self,n_reapet):
+    def __init__(self,n_reapet,duplicate_removal=True):
         self.switch_id_mul = 100000
         self.port_type_mul = 10000
         self.output_port_const = 2
@@ -33,6 +33,7 @@ class emulated_tf(object):
         # which stage of TF is FWD engine. starting from 0
         self.fwd_engine_stage = 1
         self.length = 0
+        self.duplicate_removal = duplicate_removal
         
     def set_fwd_engine_stage(self,stage):
         self.fwd_engine_stage = stage
@@ -93,7 +94,8 @@ class emulated_tf(object):
                 ports.remove(port + self.output_port_const * self.port_type_mul)
             if (len(ports)>0):
                 result.append((h,ports))
-        self.remove_duplicates(result)
+        if self.duplicate_removal:
+            self.remove_duplicates(result)
         return result 
     
     def T_inv(self,hs,port):

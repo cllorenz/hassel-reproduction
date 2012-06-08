@@ -168,6 +168,7 @@ def print_loops(loops, reverse_map):
         for (n,r,s) in p_node["hdr"].applied_rule_ids:
             rl_id = rl_id + " -> %s"%r
         print rl_id
+        i = 0
         for i in range(len(p_node["hs_history"])):
             print "*** %d) AT PORT: %s\nHS: %s\n"%(i,reverse_map["%d"%p_node["visits"][i]],p_node["hs_history"][i])
         print "*** %d) AT PORT: %s\nHS: %s\n"%(i+1,reverse_map["%d"%p_node["port"]],p_node["hdr"])
