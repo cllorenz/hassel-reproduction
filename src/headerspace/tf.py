@@ -778,7 +778,7 @@ class TF(object):
             result += "%s\n"%s
         return result
         
-        def add_fwd_rule_no_influence(self, rule, priority=-1):
+    def add_fwd_rule_no_influence(self, rule, priority=-1):
         '''
         * 'match': a bytearray of length self.length describing the header formats that
         match this rule.
