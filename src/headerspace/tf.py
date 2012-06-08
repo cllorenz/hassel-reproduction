@@ -49,6 +49,11 @@ class TF(object):
         self.hash_table_active = False
         self.hash_nibble_indices = []
         self.inport_to_hash_table = {}
+
+        # James: Exact match hash
+        self.exact_match_hash_active = False
+        self.exact_match_hash = {}
+        self.exact_match_indices = []
         
     def set_prefix_id(self,str_prefix):
         self.prefix_id = str_prefix
@@ -82,6 +87,45 @@ class TF(object):
                 
     def deactivate_hash_table(self):
         self.hash_table_active = False
+    
+            
+    def activate_exact_match_hash(self, indices):
+        self.exact_match_hash_active = True
+        self.exact_match_indices = indices
+        
+        count = 0
+        count1 = 0 
+        for rule in self.rules:
+            match = bytearray()
+            match_key_string = ""
+            for index in indices:
+                match.append(rule["match"][index])      
+            #print byte_array_to_hs_string(match)   
+            #print byte_array_to_hs_string(rule["match"]) 
+            #print rule['action'] 
+            match_key_string = byte_array_to_hs_string(match)
+            in_ports = rule["in_ports"]   
+            
+            if 'x' in match_key_string:
+                match_key_string = "default"
+                count += 1
+            else:
+                count1 += 1
+                             
+            for in_port in in_ports:
+                if "%d"%in_port not in self.exact_match_hash.keys():
+                    self.exact_match_hash["%d"%in_port] = {}
+                if match_key_string not in self.exact_match_hash["%d"%in_port].keys():
+                    self.exact_match_hash["%d"%in_port][match_key_string] = []
+                self.exact_match_hash["%d"%in_port][match_key_string].append(rule)
+
+        #print indices
+        #print "Default Count", count
+        #print "Normal Count", count1
+        
+    def deactivate_exact_match_hash(self):
+        self.exact_match_hash_active = False
+        self.exact_match_hash = {}
         
     def print_influences(self):
         '''
