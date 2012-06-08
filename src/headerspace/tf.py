@@ -777,3 +777,57 @@ class TF(object):
         for s in strs:
             result += "%s\n"%s
         return result
+        
+        def add_fwd_rule_no_influence(self, rule, priority=-1):
+        '''
+        * 'match': a bytearray of length self.length describing the header formats that
+        match this rule.
+        * 'in_ports': the list of input port numbers to match on
+        * 'out_ports': the list of output port numbers.
+        '''
+        extended_rule = rule.copy()
+        extended_rule['match'] = bytearray(rule['match'])
+        extended_rule['action'] = "fwd"
+        extended_rule['inverse_match'] = None
+        extended_rule['inverse_rewrite'] = None
+        extended_rule["id"] = self.generate_next_id()
+        if (priority == -1 or priority >= len(self.rules)):
+            self.rules.append(extended_rule)
+            priority = len(self.rules) - 1
+        else:
+            self.rules.insert(priority, extended_rule)
+            
+        #self.find_influences(priority)
+        self.set_fast_lookup_pointers(priority)
+        
+    def add_rewrite_rule_no_influence(self, rule, priority= -1):
+        '''
+        rule is a dictionary with following keys:
+        * 'match': a bytearray of length self.length describing the header formats that
+        match this rule.
+        * 'in_ports': the list of input port numbers to match on
+        * 'mask': a bytearray of length self.length that masks all the bits that won't 
+        be rewritten
+        * 'rewrite': a bytearray of length self.length that rewrites the desired bits.
+        * 'out_ports': the list of output port numbers.
+        '''
+        extended_rule = rule.copy()
+        extended_rule['match'] = bytearray(rule['match'])
+        extended_rule['mask'] = bytearray(rule['mask'])
+        # Mask rewrite
+        extended_rule['rewrite'] = byte_array_and(byte_array_not(rule['mask']), rule['rewrite'])
+        extended_rule['action'] = "rw"
+        
+        masked = byte_array_and(rule['match'], rule['mask'])
+        rng = byte_array_or(masked, rule['rewrite'])
+        extended_rule['inverse_match'] = rng
+        extended_rule['inverse_rewrite'] = byte_array_and(byte_array_not(rule['mask']), rule['match'])
+        extended_rule["id"] = self.generate_next_id()
+        if (priority == -1 or priority >= len(self.rules)):
+            self.rules.append(extended_rule)
+            priority = len(self.rules) - 1
+        else:
+            self.rules.insert(priority, extended_rule)
+            
+        #self.find_influences(priority)
+        self.set_fast_lookup_pointers(priority)
