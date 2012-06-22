@@ -1,20 +1,7 @@
 '''
     <Reachability and Loop detection applications -- Part of HSA Library>
-    Copyright (C) 2012  Stanford University
-
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-    
+    Copyright 2012, Stanford University. This file is licensed under GPL v2 plus
+    a special exception, as described in included LICENSE_EXCEPTION.txt.
     
 Created on Jan 27, 2011
 
@@ -155,6 +142,9 @@ def print_reachability(paths, reverse_map):
         
 def print_loops(loops, reverse_map):
     for p_node in loops:
+        p_node["hdr"].self_diff()
+        if (p_node["hdr"].is_empty()):
+            continue
         print "----------------------------------------------"
         str = ""
         for port in p_node["visits"]:
@@ -168,7 +158,6 @@ def print_loops(loops, reverse_map):
         for (n,r,s) in p_node["hdr"].applied_rule_ids:
             rl_id = rl_id + " -> %s"%r
         print rl_id
-        i = 0
         for i in range(len(p_node["hs_history"])):
             print "*** %d) AT PORT: %s\nHS: %s\n"%(i,reverse_map["%d"%p_node["visits"][i]],p_node["hs_history"][i])
         print "*** %d) AT PORT: %s\nHS: %s\n"%(i+1,reverse_map["%d"%p_node["port"]],p_node["hdr"])
@@ -204,7 +193,7 @@ def trace_hs_back(applied_rule_list,hs,last_port):
     return hs_list
         
         
-def find_loop_original_header(NTF,TTF,propagation_node):
+def find_original_header(NTF,TTF,propagation_node):
     applied_rule_ids = list(propagation_node["hdr"].applied_rule_ids)
     hs_list = trace_hs_back(applied_rule_ids,propagation_node["hdr"],propagation_node["port"])
     return hs_list
