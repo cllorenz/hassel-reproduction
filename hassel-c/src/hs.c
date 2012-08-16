@@ -1,5 +1,6 @@
 #include "hs.h"
 
+#define MAX_STR 65536
 #define VEC_START_SIZE 1
 
 /* Add A to V. If DIFF, V is a diff list, else V is directly from an hs. */
@@ -82,24 +83,26 @@ vec_isect (struct hs_vec *a, const struct hs_vec *b, int len)
   *a = new_list;
 }
 
-static void
-vec_print (const struct hs_vec *v, int len)
+static char *
+vec_to_str (const struct hs_vec *v, int len, char *res)
 {
-  if (!v->diff) printf ("(");
+  if (!v->diff) *res++ = '(';
   for (int i = 0; i < v->used; i++) {
-    if (i) printf (" + ");
+    bool diff = v->diff && v->diff[i].used;
+    if (i) res += sprintf (res, " + ");
     char *s = array_to_str (v->elems[i], len, true);
-    if (v->diff) printf ("(");
-    printf ("%s", s);
+    if (diff) *res++ = '(';
+    res += sprintf (res, "%s", s);
     free (s);
-    if (v->diff) {
-      printf (" - ");
-      vec_print (&v->diff[i], len);
-      printf (")");
+    if (diff) {
+      res += sprintf (res, " - ");
+      res = vec_to_str (&v->diff[i], len, res);
+      *res++ = ')';
     }
   }
-  if (!v->diff) printf (")");
-  else printf ("\n");
+  if (!v->diff) *res++ = ')';
+  else *res++ = 0;
+  return res;
 }
 
 
@@ -159,7 +162,19 @@ hs_free (struct hs *hs)
 
 void
 hs_print (const struct hs *hs)
-{ vec_print (&hs->list, hs->len); }
+{
+  char s[MAX_STR];
+  vec_to_str (&hs->list, hs->len, s);
+  printf ("%s\n", s);
+}
+
+char *
+hs_to_str (const struct hs *hs)
+{
+  char s[MAX_STR];
+  vec_to_str (&hs->list, hs->len, s);
+  return xstrdup (s);
+} 
 
 
 void
@@ -268,7 +283,7 @@ bool
 hs_isect_arr (struct hs *res, const struct hs *hs, const array_t *a)
 {
   const struct hs_vec *v = &hs->list;
-  array_t tmp[ARRAY_BYTES (hs->len)];
+  array_t tmp[ARRAY_BYTES (hs->len) / sizeof (array_t)];
   int pos = -1;
 
   for (int i = 0; i < v->used; i++) {
@@ -308,5 +323,22 @@ hs_minus (struct hs *a, const struct hs *b)
   hs_isect (a, &tmp);
   hs_destroy (&tmp);
   hs_compact (a);
+}
+
+void
+hs_rewrite (struct hs *hs, const array_t *mask, const array_t *rewrite)
+{
+  struct hs_vec *v = &hs->list;
+  for (int i = 0; i < v->used; i++) {
+    int n = array_rewrite (v->elems[i], mask, rewrite, hs->len);
+
+    struct hs_vec *diff = &v->diff[i];
+    for (int j = 0; j < diff->used; j++) {
+      if (n == array_rewrite (diff->elems[j], mask, rewrite, hs->len)) continue;
+      free (diff->elems[j]);
+      diff->elems[j] = diff->elems[--diff->used];
+      j--;
+    }
+  }
 }
 

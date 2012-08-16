@@ -6,7 +6,7 @@
 #define OUTPUT_ID 20000
 
 int
-ntf_get_sw (int port)
+ntf_get_sw (uint32_t port)
 {
   int idx = port / SWITCH_ID - 1;
   assert (idx >= 0 && idx < data_file->ntfs - 1);

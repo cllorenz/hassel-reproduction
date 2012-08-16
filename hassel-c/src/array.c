@@ -29,6 +29,13 @@ int_str (uint16_t x, char *out)
   return sprintf (out, "D%d,", x);
 }
 
+static inline int
+x_count (array_t a, array_t mask)
+{
+  array_t tmp = a & (a >> 1) & mask & ODD_MASK;
+  return __builtin_popcountll (tmp);
+}
+
 
 array_t *
 array_create (int len, enum bit_val val)
@@ -222,11 +229,19 @@ array_rewrite (array_t *a, const array_t *mask, const array_t *rewrite, int len)
 {
   int n = 0;
   for (int i = 0; i < SIZE (len); i++) {
-    array_t tmp = a[i] & (a[i] >> 1) & mask[i] & ODD_MASK;
-    n += __builtin_popcountll (tmp);
+    n += x_count (a[i], mask[i]);
     a[i] = (((a[i] | mask[i]) & rewrite[i]) & ODD_MASK) |
            (((a[i] & mask[i]) | rewrite[i]) & EVEN_MASK);
   }
+  return n;
+}
+
+int
+array_x_count (const array_t *a, const array_t *mask, int len)
+{
+  int n = 0;
+  for (int i = 0; i < SIZE (len); i++)
+    n += x_count (a[i], mask[i]);
   return n;
 }
 

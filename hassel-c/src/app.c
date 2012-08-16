@@ -16,11 +16,10 @@ struct tdata {
 };
 
 static struct list_res *queues;
-//static pthread_mutex_t *locks;
 static pthread_cond_t  *conds;
 
 static unsigned int waiters;
-static pthread_mutex_t wait_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t wait_lock = PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP;
 
 static bool
 is_loop (int port, const struct res *res)
@@ -44,12 +43,8 @@ app_init (void)
   assert (data_file && !queues);
   int n = data_file->ntfs - 1;
   queues = xcalloc (n, sizeof *queues);
-  //locks = xmalloc (n * sizeof *locks);
   conds = xmalloc (n * sizeof *conds);
-  for (int i = 0; i < n; i++) {
-    //pthread_mutex_init (&locks[i], NULL);
-    pthread_cond_init (&conds[i], NULL);
-  }
+  for (int i = 0; i < n; i++) pthread_cond_init (&conds[i], NULL);
 }
 
 void
@@ -71,11 +66,12 @@ reach_thread (void *vdata)
   int nout = g_nout;
   int ntfs = data_file->ntfs - 1;
 
-  int count = 0, loops = 0;
+  //int count = 0, loops = 0;
   while (true) {
-    struct res *cur;
+    struct list_res queue = {0};
     pthread_mutex_lock (&wait_lock);
-    while (!(cur = queues[sw].head)) {
+    //fprintf (stderr, "%d %d\n", sw, queues[sw].n);
+    while (!queues[sw].head) {
       waiters |= 1 << sw;
       if (waiters + 1 == 1 << ntfs) {
         for (int i = 0; i < ntfs; i++) {
@@ -94,60 +90,69 @@ reach_thread (void *vdata)
       }
       assert (waiters | (1 << sw));
     }
-    list_pop (&queues[sw]);
+    queue = queues[sw];
+    memset (&queues[sw], 0, sizeof queues[sw]);
     pthread_mutex_unlock (&wait_lock);
 
-    struct list_res nextqs[ntfs];
-    memset (nextqs, 0, sizeof nextqs);
+    struct res *cur;
+    while ((cur = queue.head)) {
+      list_pop (&queue);
 
-    struct list_res ntf_res = ntf_apply (cur, sw);
-    struct res *ntf_cur = ntf_res.head;
-    while (ntf_cur) {
-      struct res *ntf_next = ntf_cur->next;
-      if (!out || int_find (ntf_cur->port, out, nout)) {
-        list_append (res, ntf_cur);
-        ref_add (ntf_cur, cur);
-        if (out) {
-          ntf_cur = ntf_next;
-          continue;
+      bool new_res = false;
+      struct list_res nextqs[ntfs];
+      memset (nextqs, 0, sizeof nextqs);
+
+      struct list_res ntf_res = ntf_apply (cur, sw);
+      struct res *ntf_cur = ntf_res.head;
+      while (ntf_cur) {
+        struct res *ntf_next = ntf_cur->next;
+        if (!out || int_find (ntf_cur->port, out, nout)) {
+          list_append (res, ntf_cur);
+          ref_add (ntf_cur, cur);
+          if (out) {
+            ntf_cur = ntf_next;
+            continue;
+          }
         }
-      }
 
-      struct list_res ttf_res = tf_apply (tf_get (0), ntf_cur, true);
-      struct res *ttf_cur = ttf_res.head;
-      while (ttf_cur) {
-        struct res *ttf_next = ttf_cur->next;
-        if (is_loop (ttf_cur->port, cur)) {
-          res_free (ttf_cur);
+        struct list_res ttf_res = tf_apply (tf_get (0), ntf_cur, true);
+        struct res *ttf_cur = ttf_res.head;
+        while (ttf_cur) {
+          struct res *ttf_next = ttf_cur->next;
+          if (is_loop (ttf_cur->port, cur)) {
+            res_free (ttf_cur);
+            ttf_cur = ttf_next;
+            //loops++;
+            continue;
+          }
+
+          ref_add (ttf_cur, cur);
+          if (out && int_find (ttf_cur->port, out, nout)) list_append (res, ttf_cur);
+          else {
+            int new_sw = ntf_get_sw (ttf_cur->port);
+            list_append (&nextqs[new_sw], ttf_cur);
+            //count++;
+            new_res = true;
+          }
           ttf_cur = ttf_next;
-          loops++;
-          continue;
         }
-
-        ref_add (ttf_cur, cur);
-        if (out && int_find (ttf_cur->port, out, nout)) list_append (res, ttf_cur);
-        else {
-          int new_sw = ntf_get_sw (ttf_cur->port);
-          list_append (&nextqs[new_sw], ttf_cur);
-          count++;
-        }
-        ttf_cur = ttf_next;
+        if (out) res_free (ntf_cur);
+        ntf_cur = ntf_next;
       }
-      if (out) res_free (ntf_cur);
-      ntf_cur = ntf_next;
-    }
-    //res_free (cur);
+      res_free_mt (cur, true);
 
-    pthread_mutex_lock (&wait_lock);
-    unsigned int wake = 0;
-    for (int i = 0; i < ntfs; i++) {
-      if (!nextqs[i].n) continue;
-      list_concat (&queues[i], &nextqs[i]);
-      pthread_cond_broadcast (&conds[i]);
-      wake |= 1 << i;
+      if (!new_res) continue;
+      pthread_mutex_lock (&wait_lock);
+      unsigned int wake = 0;
+      for (int i = 0; i < ntfs; i++) {
+        if (!nextqs[i].head) continue;
+        list_concat (&queues[i], &nextqs[i]);
+        pthread_cond_broadcast (&conds[i]);
+        wake |= 1 << i;
+      }
+      waiters &= ~wake;
+      pthread_mutex_unlock (&wait_lock);
     }
-    waiters &= ~wake;
-    pthread_mutex_unlock (&wait_lock);
   }
 }
 

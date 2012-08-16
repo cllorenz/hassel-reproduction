@@ -4,7 +4,7 @@
 #include "res.h"
 
 struct PACKED port_map {
-  uint32_t n/*, padding*/;
+  uint32_t n;
   struct PACKED port_map_elem {
     uint32_t port;
     uint32_t start;
@@ -40,9 +40,10 @@ struct PACKED tf {
   struct rule rules[0];
 };
 
-struct list_res tf_apply (const struct tf *, const struct res *, bool);
-struct tf      *tf_get   (int);
-void            tf_print (const struct tf *);
+/* If APPEND, copy applied rules from IN before adding new rules. */
+struct list_res tf_apply (const struct tf *tf, const struct res *in, bool append);
+struct tf      *tf_get   (int idx);
+void            tf_print (const struct tf *tf);
 
 #endif
 

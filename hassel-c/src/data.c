@@ -184,7 +184,7 @@ gen_tf (const struct parse_tf *tf, FILE *out, FILE *f_strs, const array_t *arrs,
   FILE *f_deps = open_memstream (&buf_deps, &sz_deps);
 
   int start = ftell (out);
-  struct tf hdr = {ftell (f_strs), tf->nrules};
+  struct tf hdr = {ftell (f_strs) + VALID_OFS, tf->nrules};
 
   if (tf->prefix) fwrite (tf->prefix, 1, strlen (tf->prefix) + 1, f_strs);
   else hdr.prefix = 0;
@@ -204,7 +204,6 @@ gen_tf (const struct parse_tf *tf, FILE *out, FILE *f_strs, const array_t *arrs,
     tmp->mask = arr_find (r->mask, arrs, narrs);
     tmp->rewrite = arr_find (r->rewrite, arrs, narrs);
     if (r->deps.head) tmp->deps = gen_deps (&r->deps, f_deps, f_ports, arrs, narrs);
-    //tmp->deps = foobar;
     //tmp->desc = barfoo;
   }
   fclose (f_ports);
@@ -247,13 +246,14 @@ data_gen (const char *name, const struct parse_ntf *ntf, const struct parse_tf *
 
   int hdr_size = offsetof (struct file, tf_ofs[ntfs]);
   struct file *hdr = xmalloc (hdr_size);
+  memset (hdr, 0, hdr_size);
   hdr->ntfs = ntfs;
   hdr->stages = ntf->stages;
   fwrite (hdr, hdr_size, 1, out);
 
   for (int i = 0; i < ntfs; i++) {
     hdr->tf_ofs[i] = ftell (out);
-    fprintf (stderr, "%" PRIu32 "\n", hdr->tf_ofs[i]);
+    printf ("%" PRIu32 "\n", hdr->tf_ofs[i]);
     if (!i) gen_tf (ttf, out, f_strs, arrs, narrs);
     else gen_tf (ntf->tfs[i - 1], out, f_strs, arrs, narrs);
   }
@@ -275,7 +275,7 @@ data_gen (const char *name, const struct parse_ntf *ntf, const struct parse_tf *
   fwrite (hdr, hdr_size, 1, out);
   free (hdr);
 
-  fprintf (stderr, "Total: %d bytes\n", end);
+  printf ("Total: %d bytes\n", end);
   fclose (out);
 }
 

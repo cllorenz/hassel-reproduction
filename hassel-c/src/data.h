@@ -23,10 +23,10 @@ extern array_t *data_arrs;
 extern uint32_t data_arrs_len, data_arrs_n;
 extern char    *data_strs;
 
-void data_load   (const char *);
+void data_load   (const char *file);
 void data_unload (void);
 
-void data_gen (const char *, const struct parse_ntf *, const struct parse_tf *);
+void data_gen (const char *out, const struct parse_ntf *ntf, const struct parse_tf *ttf);
 
 #endif
 

@@ -154,9 +154,45 @@ parse_tf (const char *name)
 }
 
 
+static void
+free_dep (struct parse_dep *dep)
+{ array_free (dep->match); free (dep); }
+
+static void
+free_rule (struct parse_rule *r)
+{
+  ARR_FREE (r->in);
+  ARR_FREE (r->out);
+  array_t *arrs[] = {r->match, r->mask, r->rewrite};
+  for (int i = 0; i < ARR_LEN (arrs); i++) array_free (arrs[i]);
+  list_destroy (&r->deps, free_dep);
+  free (r);
+}
+
+static void
+free_tf (struct parse_tf *tf)
+{
+  free (tf->prefix);
+  list_destroy (&tf->rules, free_rule);
+  map_destroy (&tf->in_map);
+  free (tf);
+}
+
+
+static void
+free_ntf (struct parse_ntf *ntf)
+{
+  for (int i = 0; i < ntf->ntfs; i++) free_tf (ntf->tfs[i]);
+  free (ntf);
+}
+
+
 void
 parse_dir (const char *outdir, const char *tfdir, const char *name)
 {
+  printf ("Parsing: ");
+  fflush (stdout);
+
   struct parse_ntf *ntf;
   struct parse_tf *ttf;
   int stages;
@@ -192,8 +228,12 @@ parse_dir (const char *outdir, const char *tfdir, const char *name)
   strcpy (base, "/topology.tf");
   ttf = parse_tf (buf);
   assert (ttf);
+  printf ("done\n");
 
   snprintf (buf, sizeof buf, "%s/%s.dat", outdir, name);
   data_gen (buf, ntf, ttf);
+
+  free_ntf (ntf);
+  free_tf (ttf);
 }
 

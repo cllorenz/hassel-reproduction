@@ -60,22 +60,6 @@ print_ports (int32_t p, const struct tf *tf)
   printf ("\n");
 }
 
-static void
-vec_rewrite (struct hs_vec *v, const array_t *mask, const array_t *rewrite)
-{
-  for (int i = 0; i < v->used; i++) {
-    int n = array_rewrite (v->elems[i], mask, rewrite, data_arrs_len);
-
-    struct hs_vec *diff = &v->diff[i];
-    for (int j = 0; j < diff->used; j++) {
-      if (n == array_rewrite (diff->elems[j], mask, rewrite, data_arrs_len)) continue;
-      free (diff->elems[j]);
-      diff->elems[j] = diff->elems[--diff->used];
-      j--;
-    }
-  }
-}
-
 
 static struct list_res
 rule_apply (const struct rule *r, const struct tf *tf, const struct res *in,
@@ -91,7 +75,7 @@ rule_apply (const struct rule *r, const struct tf *tf, const struct res *in,
   else {
     if (!hs_isect_arr (&hs, &in->hs, DATA_ARR (r->match))) return res;
     if (r->deps) deps_diff (&hs, in->port, DEPS (tf, r->deps), tf, app, *napp);
-    if (r->mask) vec_rewrite (&hs.list, DATA_ARR (r->mask), DATA_ARR (r->rewrite));
+    if (r->mask) hs_rewrite (&hs, DATA_ARR (r->mask), DATA_ARR (r->rewrite));
     if (!hs_compact (&hs)) { hs_destroy (&hs); return res; }
   }
 
@@ -107,12 +91,13 @@ rule_apply (const struct rule *r, const struct tf *tf, const struct res *in,
   for (int i = 0; i < n; i++) {
     if (a[i] == in->port) continue;
     struct res *tmp;
-    if (used_hs) tmp = res_extend (in, &hs, a[i], r, append);
+    if (used_hs) tmp = res_extend (in, &hs, a[i], append);
     else {
-      tmp = res_extend (in, NULL, a[i], r, append);
+      tmp = res_extend (in, NULL, a[i], append);
       tmp->hs = hs;
       used_hs = true;
     }
+    res_rule_add (tmp, tf, r->idx);
     list_append (&res, tmp);
   }
 

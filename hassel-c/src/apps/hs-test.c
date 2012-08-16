@@ -85,7 +85,9 @@ hs_test (void)
   hs_diff (a, arr);
   hs_print (a);
   hs_comp_diff (a);
-  hs_print (a);
+  char *s = hs_to_str (a);
+  printf ("S: %s\n", s);
+  free (s);
   hs_free (a);
   free (arr);
 }

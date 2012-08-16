@@ -21,6 +21,7 @@ void       hs_free    (struct hs *hs);
 void       hs_copy   (struct hs *dst, const struct hs *src);
 struct hs *hs_copy_a (const struct hs *src);
 void       hs_print  (const struct hs *hs);
+char      *hs_to_str (const struct hs *hs);
 
 void hs_add  (struct hs *hs, array_t *a);
 void hs_diff (struct hs *hs, const array_t *a);
@@ -31,6 +32,7 @@ void hs_cmpl      (struct hs *hs);
 bool hs_isect     (struct hs *a, const struct hs *b);
 bool hs_isect_arr (struct hs *dst, const struct hs *src, const array_t *arr);
 void hs_minus     (struct hs *a, const struct hs *b);
+void hs_rewrite   (struct hs *hs, const array_t *mask, const array_t *rewrite);
 
 #endif
 

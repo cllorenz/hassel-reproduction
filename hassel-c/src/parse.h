@@ -4,6 +4,9 @@
 #include "array.h"
 #include "map.h"
 
+/* These structures are used by data_gen() to create the data file used by
+   tf/ntf/app. A parser should create and NTF (a parse_ntf) and TTF (a parse_tf)
+   and pass these to data_gen(). */
 struct parse_dep {
   struct parse_dep *next;
   int rule;
@@ -36,7 +39,9 @@ struct parse_ntf {
   struct parse_tf *tfs[0];
 };
 
-void parse_dir (const char *, const char *, const char *);
+/* Parse the .tf files in TFDIR/NETNAME, generating OUTDIR/NETNAME.dat, which is
+   suitable for loading via data_load(). */
+void parse_dir (const char *outdir, const char *tfdir, const char *netname);
 
 #endif
 
