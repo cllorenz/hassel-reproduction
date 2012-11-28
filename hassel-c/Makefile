@@ -1,14 +1,14 @@
 .PHONY: all clean
 
 CC = gcc
-CFLAGS = -g -Wall -O3 -std=gnu99 -I$(SRC_DIR) -I$(BUILD_DIR) -pthread
+CFLAGS = -g -Wall -O3 -std=gnu99 -I$(SRC_DIR) -I$(BUILD_DIR) -pthread -D_GNU_SOURCE
 LDFLAGS = -pthread
 
 APPS = $(patsubst %.c,%,$(filter-out apps.c,$(notdir $(wildcard $(SRC_DIR)/$(APP_DIR)/*.c))))
 JUNK =
 
 all_SRC = app.c array.c data.c hs.c ntf.c parse.c res.c tf.c
-all_HDR = $(wildcard $(SRC_DIR)/*.h)
+all_HDR = apps/apps.h $(wildcard $(SRC_DIR)/*.h)
 
 SRC_DIR = src
 BUILD_DIR = build

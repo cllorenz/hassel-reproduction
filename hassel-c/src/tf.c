@@ -1,3 +1,11 @@
+/*
+  Copyright 2012, Stanford University. This file is licensed under GPL v2 plus
+  a special exception, as described in included LICENSE_EXCEPTION.txt.
+
+  Author: mchang@cs.stanford.com (Michael Chang)
+          peyman.kazemian@gmail.com (Peyman Kazemian)
+*/
+
 #include "tf.h"
 #include "data.h"
 
@@ -75,8 +83,8 @@ rule_apply (const struct rule *r, const struct tf *tf, const struct res *in,
   else {
     if (!hs_isect_arr (&hs, &in->hs, DATA_ARR (r->match))) return res;
     if (r->deps) deps_diff (&hs, in->port, DEPS (tf, r->deps), tf, app, *napp);
+    if (!hs_compact_m (&hs, r->mask ? DATA_ARR (r->mask) : NULL)) { hs_destroy (&hs); return res; }
     if (r->mask) hs_rewrite (&hs, DATA_ARR (r->mask), DATA_ARR (r->rewrite));
-    if (!hs_compact (&hs)) { hs_destroy (&hs); return res; }
   }
 
   bool used_hs = false;
