@@ -8,7 +8,6 @@ Created on Jun 7, 2012
 '''
 from headerspace.hs import *
 from headerspace.tf import *
-from config_parser.helper import *
 
 # Create a transfer function object for packet header of length 2 nibbles
 tf = TF(2)
