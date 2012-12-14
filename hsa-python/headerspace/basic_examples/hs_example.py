@@ -8,23 +8,23 @@ Created on Jun 7, 2012
 '''
 
 from headerspace.hs import *
-from headerspace.wildcard_dictionary import *
+from utils.wildcard import *
 
-# Creating a header space object of length 8 bits (2 nibbles)
-hs = headerspace(2)
+# Creating a header space object of length 8 bits (1 byte)
+hs = headerspace(1)
 
 # Adding some wildcard expressions to the headerspace object
-hs.add_hs(hs_string_to_byte_array("101xxxxx"))
-hs.add_hs(hs_string_to_byte_array("0010xxxx"))
+hs.add_hs(wildcard_create_from_string("101xxxxx"))
+hs.add_hs(wildcard_create_from_string("0010xxxx"))
 print "original HS is\n",hs,"\n---------"
 
 # Removing some wildcard expressions from the headerspace object
-hs.diff_hs(hs_string_to_byte_array("1010011x"))
-hs.diff_hs(hs_string_to_byte_array("1010xxx0"))
+hs.diff_hs(wildcard_create_from_string("1010011x"))
+hs.diff_hs(wildcard_create_from_string("1010xxx0"))
 print "New HS is\n",hs,"\n---------"
 
 # Intersecting this headerspace with some wildcard expression
-hs.intersect(hs_string_to_byte_array("10100xxx"))
+hs.intersect(wildcard_create_from_string("10100xxx"))
 print "After intersection HS is\n",hs,"\n---------"
 
 # Forcing the subtraction to be computed
