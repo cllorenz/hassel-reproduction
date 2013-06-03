@@ -47,3 +47,27 @@ ntf_apply (const struct res *in, int sw)
   return queue;
 }
 
+struct list_res
+ntf_search (const struct res *in, const uint32_t * search_ports, int num)
+{
+  int sw = ntf_get_sw(in->port);
+  struct tf *tf = tf_get (sw + 1);
+
+  struct list_res queue = tf_apply (tf, in, false);
+  struct list_res found = {0};
+  for (int i = 0; i < data_file->stages - 1; i++) {
+    struct list_res nextq = {0};
+    for (struct res *cur = queue.head; cur; cur = cur->next) {
+    	list_pop (&queue);
+    	if (search_ports && int_find (cur->port, search_ports, num)) {
+    		list_append(&found,cur);
+    	} else {
+    		struct list_res tmp = tf_apply (tf, cur, true);
+    		list_concat (&nextq, &tmp);
+    	}
+    }
+    list_res_free (&queue);
+    queue = nextq;
+  }
+  return found;
+}

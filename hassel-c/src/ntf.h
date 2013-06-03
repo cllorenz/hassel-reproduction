@@ -13,6 +13,6 @@
 
 int             ntf_get_sw (uint32_t port);
 struct list_res ntf_apply  (const struct res *in, int sw);
-
+struct list_res ntf_search (const struct res *in, const uint32_t * search_ports, int num);
 #endif
 

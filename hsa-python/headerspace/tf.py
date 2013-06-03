@@ -57,7 +57,7 @@ class TF(object):
         self.prefix_id = ""
         
         # If the rules send out results on the port the input hs is received on
-        self.send_on_receiving_port = True
+        self.send_on_receiving_port = False
         
         # To help improving speed of look up, can use a hash table for this 
         # tf class.
@@ -789,7 +789,7 @@ class TF(object):
         '''
         print "=== Saving transfer function to file %s ==="%file
         f = open(file, 'w')
-        f.write("%d$%s$%d$%d$%d$\n"%(self.length,\
+        f.write("%d$%s$%d$%d$%d$\n"%(2*self.length,\
                                      self.prefix_id,\
                                      self.next_id,\
                                      self.lazy_eval_active,\

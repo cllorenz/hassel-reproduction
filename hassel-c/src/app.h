@@ -17,8 +17,9 @@ void app_fini (void);
 void app_add_in (const struct hs *hs, uint32_t port);
 
 /* Reachability of HS from IN to OUT. If OUT == NULL, computes reachability to
-   all output ports. */
-struct list_res reachability (const uint32_t *out, int nout);
+   all output ports. if hop_count > 0, limit the result to packets that go
+   through at least hop_count transfer functions (including ttf)*/
+struct list_res reachability (const uint32_t *out, int nout, int hop_count);
 
 #endif
 

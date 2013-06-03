@@ -16,6 +16,7 @@
 
 static const uint32_t *g_out;
 static int g_nout;
+static uint32_t g_hop_count;
 
 struct tdata {
   pthread_t tid;
@@ -124,11 +125,17 @@ reach_thread (void *vdata)
       while (ntf_cur) {
         struct res *ntf_next = ntf_cur->next;
         if (!out || int_find (ntf_cur->port, out, nout)) {
-          list_append (res, ntf_cur);
-          ref_add (ntf_cur, cur);
-          if (out) {
-            ntf_cur = ntf_next;
-            continue;
+          int count = 0;
+          if (g_hop_count > 0) {
+          	for (const struct res *r = cur; r != NULL; r = r->parent, count++);
+          }
+          if (count == 0 || count == g_hop_count-1) {
+		    list_append (res, ntf_cur);
+			ref_add (ntf_cur, cur);
+			if (out) {
+		      ntf_cur = ntf_next;
+			  continue;
+			}
           }
         }
 
@@ -174,7 +181,7 @@ reach_thread (void *vdata)
 }
 
 struct list_res
-reachability (const uint32_t *out, int nout)
+reachability (const uint32_t *out, int nout, int hop_count)
 {
   struct list_res res = {0};
   int n = data_file->ntfs - 1;
@@ -183,6 +190,7 @@ reachability (const uint32_t *out, int nout)
 
   g_out = out;
   g_nout = nout;
+  g_hop_count = hop_count;
 
   for (int i = 0; i < n; i++) {
     struct tdata *p = &data[i];

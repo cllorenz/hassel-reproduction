@@ -12,6 +12,7 @@
 #include <limits.h>
 #include <sys/time.h>
 #include <unistd.h>
+#include "ntf.h"
 
 #ifndef NTF_STAGES
 #define NTF_STAGES 1
@@ -43,10 +44,11 @@ int
 main (int argc, char **argv)
 {
   if (argc < 2) {
-    fprintf (stderr, "Usage: %s <in_port> [<out_ports>...]\n", argv[0]);
+    fprintf (stderr, "Usage: %s [-h header] [-o] [-c hop_count] <in_port> [<out_ports>...]\n", argv[0]);
     exit (1);
   }
 
+  bool one_step = false;
   char *net = basename (argv[0]);
   chdir (dirname (argv[0]));
   load (net);
@@ -55,16 +57,46 @@ main (int argc, char **argv)
   struct hs hs;
   memset (&hs, 0, sizeof hs);
   hs.len = data_arrs_len;
-  hs_add (&hs, array_create (hs.len, BIT_X));
+  int hop_count = 0;
+  int offset = 1;
+  if (strcmp(argv[offset],"-h") == 0) {
+	  array_t * a = array_from_str (argv[offset+1]);
+	  hs_add (&hs, a);
+	  offset += 2;
+  } else {
+	  hs_add (&hs, array_create (hs.len, BIT_X));
+  }
 
-  int nout = argc - 2;
+  if (strcmp(argv[offset],"-o") == 0) {
+	  one_step = true;
+	  offset++;
+  }
+
+  if (strcmp(argv[offset],"-c") == 0) {
+	  hop_count = atoi (argv[1 + offset]) + 1;
+	  offset += 2;
+  } else {
+	  hop_count = 0;
+  }
+
+  uint32_t in_port = atoi(argv[offset]);
+  offset++;
+  int nout = argc - offset;
   uint32_t out[nout];
-  for (int i = 0; i < nout; i++) out[i] = atoi (argv[i + 2]);
+  for (int i = 0; i < nout; i++) out[i] = atoi (argv[i + offset]);
 
   struct timeval start, end;
+  struct list_res res;
   gettimeofday (&start, NULL);
-  app_add_in (&hs, atoi (argv[1]));
-  struct list_res res = reachability (nout ? out : NULL, nout);
+  if (one_step) {
+	  struct res *in = res_create (data_file->stages + 1);
+	  hs_copy (&in->hs, &hs);
+	  in->port = in_port;
+	  res = ntf_search(in, nout ? out : NULL, nout);
+  } else {
+	  app_add_in (&hs, in_port);
+	  res = reachability (nout ? out : NULL, nout, hop_count);
+  }
   gettimeofday (&end, NULL);
 
   list_res_print (&res);

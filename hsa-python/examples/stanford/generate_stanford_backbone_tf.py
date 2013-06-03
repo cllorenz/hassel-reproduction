@@ -9,7 +9,7 @@ Created on Aug 10, 2011
 @author: Peyman Kazemian
 '''
 
-from examples.utils.cisco_tf_generator import generate_transfer_functions
+from examples.example_utils.cisco_tf_generator import generate_transfer_functions
 
 settings = {"rtr_names":["bbra_rtr",
              "bbrb_rtr",

@@ -236,3 +236,4 @@ def wildcard_rewrite(w,mask,rewrite):
   else:
     raise Exception("length mismatch")
   
+

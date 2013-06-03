@@ -9,6 +9,7 @@ Created on Mar 27, 2012
 @author: Peyman Kazemian
 '''
 import json
+from utils.helper import int_to_dotted_ip
 from utils.wildcard import wildcard_and,wildcard_or,wildcard_create_bit_repeat
 from headerspace.tf import TF
 
@@ -63,8 +64,9 @@ class OpenFlow_Rule_Generator(object):
     rw = wildcard_or(\
                       wildcard_and(field_match,field_mask),\
                       field_rewrite)
+
     try:
-      value = int(rw.__str__(0))
+      value = int(rw.__str__(0).replace(",", ""),2)
       return value
     except:
       print "ERROR: Unexpected rewrite action. Ignored. %s - %s - %s - %s"%\
@@ -87,12 +89,12 @@ class OpenFlow_Rule_Generator(object):
         continue
       
       position = self.hs_format["%s_pos"%field]
-      len = self.hs_format["%s_len"%field]
+      l = self.hs_format["%s_len"%field]
       wildcarded = True
-      field_match = wildcard_create_bit_repeat(len,0x1)
-      field_mask = wildcard_create_bit_repeat(len,0x1)
-      field_rewrite = wildcard_create_bit_repeat(len,0x1)
-      for i in range(len):
+      field_match = wildcard_create_bit_repeat(l,0x1)
+      field_mask = wildcard_create_bit_repeat(l,0x1)
+      field_rewrite = wildcard_create_bit_repeat(l,0x1)
+      for i in range(l):
         field_match[i] = rule["match"][position+i]
         if rule["mask"] != None:
           field_mask[i] = rule["mask"][position+i]
@@ -124,6 +126,36 @@ class OpenFlow_Rule_Generator(object):
       openflow_entry["out_ports"] = rule["out_ports"]
     
     return openflow_entry
+  
+  @staticmethod
+  def pretify(of_rule):
+    fields = ["mac_src", "mac_dst", "vlan", "ip_src", "ip_dst", "ip_proto", "transport_src", "transport_dst"]
+    wc_val = [1,1,1,32,32,1,1,1]
+    match = ""
+    rewrite = ""
+    for i in range(len(fields)):
+      field = fields[i]
+      if "%s_wc"%field in of_rule.keys() and of_rule["%s_wc"%field] != wc_val[i]:
+        if field == "ip_src" or field == "ip_dst":
+          match = "%s%s=%s/%d,"%(match,field,
+                                 int_to_dotted_ip(of_rule["%s_match"%field]),
+                                 32-of_rule["%s_wc"%field])
+        else:
+          match = "%s%s=%s,"%(match,field,of_rule["%s_match"%field])
+      if "%s_new"%field in of_rule.keys() and of_rule["%s_new"%field] != None:
+        if field == "ip_src" or field == "ip_dst":
+          rewrite = "%s%s=%s,"%(rewrite,field,
+                                 int_to_dotted_ip(of_rule["%s_new"%field]))
+        else:
+          rewrite = "%s%s=%s,"%(rewrite,field,of_rule["%s_new"%field])
+    if rewrite != "":
+      rewrite = "Rewrite:%s;"%rewrite[:-1]
+    if match == "":
+      match = "Match:all;"
+    else:
+      match = "Match:%s;"%match[:-1]
+      
+    return (match,rewrite)
   
   def generate_of_rules(self,filename):
     f = open(filename,'w')

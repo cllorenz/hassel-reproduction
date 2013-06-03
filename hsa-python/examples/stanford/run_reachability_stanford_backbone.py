@@ -49,15 +49,15 @@ settings = {"rtr_names":["bbra_rtr",
 all_x = wildcard_create_bit_repeat(ntf.length,0x3)
 # uncomment to set some field
 #set_header_field(cisco_router.HS_FORMAT(), all_x, "field", value, right_mask)
-#set_header_field(cisco_router.HS_FORMAT(), all_x, "vlan", 92, 0)
+set_header_field(cisco_router.HS_FORMAT(), all_x, "vlan", 10, 0)
 test_pkt = headerspace(ntf.length)
 test_pkt.add_hs(all_x)
 
 #set some input/output ports
 output_port_addition = cisco_router.PORT_TYPE_MULTIPLIER * \
 cisco_router.OUTPUT_PORT_TYPE_CONST
-src_port_id = name_to_id["yoza_rtr"]["te1/4"]
-dst_port_ids = [name_to_id["boza_rtr"]["te3/3"]+output_port_addition]
+src_port_id = name_to_id["yoza_rtr"]["te1/2"]
+dst_port_ids = [name_to_id["poza_rtr"]["te2/4"]+output_port_addition]
 
 #start reachability test and print results
 st = time()
