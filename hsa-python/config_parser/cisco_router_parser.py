@@ -58,14 +58,14 @@ class cisco_router(object):
     self.switch_id = switch_id
     self.port_to_id = {}
     self.hs_format = self.HS_FORMAT()
-    self.replaced_vlan = 0
+    self.replaced_vlan = 0  #(from_vlan,to_vlan)
     self.def_vlan = 1
     
   def set_default_vlan(self,vlan):
     self.def_vlan = vlan
     
-  def set_replaced_vlan(self,vlan):
-    self.replaced_vlan = vlan
+  def set_replaced_vlan(self,rw_vlan):
+    self.replaced_vlan = rw_vlan
     
   @staticmethod
   def HS_FORMAT():
@@ -621,9 +621,9 @@ class cisco_router(object):
             vlan = int(port[4:])
           else:
             parts = re.split('\.',port)
-            if len(parts) > 1 and self.replaced_vlan != 0:
-              port = "%s.%d"%(parts[0],self.replaced_vlan)
-              vlan = self.replaced_vlan
+            if len(parts) > 1 and self.replaced_vlan != None and int(parts[1]) == self.replaced_vlan[0]:
+              port = "%s.%d"%(parts[0],self.replaced_vlan[1])
+              vlan = self.replaced_vlan[1]
             elif len(parts) > 1:
               vlan = int(parts[1])
         else:

@@ -44,7 +44,7 @@ int
 main (int argc, char **argv)
 {
   if (argc < 2) {
-    fprintf (stderr, "Usage: %s [-h header] [-o] [-c hop_count] <in_port> [<out_ports>...]\n", argv[0]);
+    fprintf (stderr, "Usage: %s [-loop] [-h header] [-o] [-c hop_count] <in_port> [<out_ports>...]\n", argv[0]);
     exit (1);
   }
 
@@ -59,6 +59,12 @@ main (int argc, char **argv)
   hs.len = data_arrs_len;
   int hop_count = 0;
   int offset = 1;
+  bool find_loop = false;
+
+  if (strcmp(argv[offset],"-loop") == 0) {
+	  find_loop = true;
+	  offset++;
+  }
   if (strcmp(argv[offset],"-h") == 0) {
 	  array_t * a = array_from_str (argv[offset+1]);
 	  hs_add (&hs, a);
@@ -95,7 +101,7 @@ main (int argc, char **argv)
 	  res = ntf_search(in, nout ? out : NULL, nout);
   } else {
 	  app_add_in (&hs, in_port);
-	  res = reachability (nout ? out : NULL, nout, hop_count);
+	  res = reachability (nout ? out : NULL, nout, hop_count, find_loop);
   }
   gettimeofday (&end, NULL);
 
