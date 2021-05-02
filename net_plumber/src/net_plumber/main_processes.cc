@@ -44,7 +44,7 @@ list<long> load_netplumber_from_dir(string json_file_path, NetPlumber * N, array
   if (!jsfile.good()) {
     printf("Error opening the file %s\n",file_name.c_str());
     return t_list;
-  }
+  } else printf("=== Loading topology to NetPlumber ===\n");
   reader.parse(jsfile,root,false);
   Json::Value topology = root["topology"];
   for (unsigned i = 0; i < topology.size(); i++) {
@@ -77,8 +77,11 @@ list<long> load_netplumber_from_dir(string json_file_path, NetPlumber * N, array
 
         // add the rules
         for (unsigned i = 0; i < rules.size(); i++) {
+//        for (unsigned i = rules.size() - 1; i >= 0; i--) {
           long run_time = 0;
           rule_counter++;
+//          uint32_t rule_id = rules[i]["id"].asUInt64() & 0xffffffff;
+          uint32_t rule_id = 0;
           string action = rules[i]["action"].asString();
           if (action == "fwd" || action == "rw" /*|| action == "encap"*/) {
             array_t *match = val_to_array(rules[i]["match"]);
@@ -87,7 +90,7 @@ list<long> load_netplumber_from_dir(string json_file_path, NetPlumber * N, array
             } else {
               gettimeofday(&start, NULL);
               N->add_rule(table_id,
-                          0,
+                          rule_id,
                           val_to_list(rules[i]["in_ports"]),
                           val_to_list(rules[i]["out_ports"]),
                           match,
