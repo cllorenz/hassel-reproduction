@@ -2,3 +2,6 @@
 *.d
 *.pyc
 *.so
+*.log
+*.tf
+*.json
