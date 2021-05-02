@@ -11,9 +11,11 @@ Created on Mar 11, 2012
 from config_parser.juniper_parser import *
 from headerspace.tf import *
 from time import time, clock
+import sys
 
 st = time()
-output_path = "Internet2"
+input_path = sys.argv[1]
+output_path = sys.argv[2]
 rtr_names = [("atla",0),
              ("chic",0),
              ("hous",0),
@@ -31,17 +33,17 @@ for (rtr_name,vlan) in rtr_names:
     cs.set_replaced_vlan(vlan)
     tf = TF(cs.HS_FORMAT()["length"]*2)
     tf.set_prefix_id(rtr_name)
-    cs.read_config_file("Internet2/data/show_interfaces.xml", rtr_name)
-    cs.read_route_file("Internet2/data/%s-show_route_forwarding-table_table_default.xml"%rtr_name)
+    cs.read_config_file("%s/show_interfaces.xml" % input_path, rtr_name)
+    cs.read_route_file("%s/%s-show_route_forwarding-table_table_default.xml"%(input_path, rtr_name))
     cs.generate_port_ids([])
     cs.optimize_forwarding_table()
     cs.generate_transfer_function(tf)
     #print tf
-    tf.save_object_to_file("Internet2/%s.tf"%rtr_name)
+    tf.save_object_to_file("%s/%s.tf"%(output_path, rtr_name))
     id += 1
     cs_list[rtr_name] = cs
     
-f = open("Internet2/port_map.txt",'w')
+f = open("%s/port_map.txt"%input_path,'w')
 for rtr in cs_list.keys():
     cs = cs_list[rtr]
     f.write("$%s\n"%rtr)
@@ -90,7 +92,7 @@ for (from_router,from_port,to_router,to_port) in topology:
     tf.add_link_rule(rule)
     rule = TF.create_standard_rule([to_cs.get_port_id(to_port) + to_cs.PORT_TYPE_MULTIPLIER * to_cs.OUTPUT_PORT_TYPE_CONST], None,[from_cs.get_port_id(from_port)], None, None, "", [])
     tf.add_link_rule(rule)
-tf.save_object_to_file("Internet2/backbone_topology.tf")
+
+tf.save_object_to_file("%s/backbone_topology.tf" % output_path)
 en = time()
-print en - st
-    
+print "completed in",en - st, "seconds"

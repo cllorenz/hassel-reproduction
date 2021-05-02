@@ -5,6 +5,7 @@ Created on Sep 19, 2012
 '''
 from headerspace.tf import TF
 import json
+import sys
 
 rtr_names = ["atla",
              "chic",
@@ -18,12 +19,14 @@ rtr_names = ["atla",
              ]
 PORT_TYPE_MULTIPLIER = 10000
 SWITCH_ID_MULTIPLIER = 100000
-path = "i2_tfs"
-out_path = "i2_json_rules"
+path = sys.argv[1]
+out_path = sys.argv[2]
+#path = "i2_tfs"
+#out_path = "i2_json"
 
 table_id = 0
 topo = TF(1)
-topo.load_object_from_file("%s/%s.tf"%(path,"topology"))
+topo.load_object_from_file("%s/%s.tf"%(path,"backbone_topology"))
 topology = {"topology":[]}
 for rule in topo.rules:
   in_ports = rule["in_ports"]
@@ -36,11 +39,13 @@ topo.save_as_json("%s/%s.json"%(path,"topology"))
 for rtr in rtr_names:
   tf = TF(1)
   tf.load_object_from_file("%s/%s.tf"%(path,rtr))
-  tf.save_as_json("%s/%s.tf.json"%(path,rtr))
+  #tf.save_as_json("%s/%s.tf.json"%(path,rtr))
   table_id += 1
   tf_in = {"rules":[], "ports":[], "id":table_id*10}
   tf_out = {"rules":[], "ports":[], "id":table_id*10+1}
-  topology["topology"].append({"src":table_id * SWITCH_ID_MULTIPLIER, "dst":table_id * SWITCH_ID_MULTIPLIER + PORT_TYPE_MULTIPLIER})
+  in_table_out_port = table_id * SWITCH_ID_MULTIPLIER
+  out_table_in_port = table_id * SWITCH_ID_MULTIPLIER + PORT_TYPE_MULTIPLIER
+  topology["topology"].append({"src":in_table_out_port, "dst":out_table_in_port})
   rtr_ports = set()
   for rule in tf.rules:
     rule.pop("line")
@@ -57,15 +62,14 @@ for rtr in rtr_names:
     if rule["mask"]:
       rule["mask"] = rule["mask"].__str__(0)
     if (rule["in_ports"][0] % SWITCH_ID_MULTIPLIER == 0):
-      mid_port = table_id * SWITCH_ID_MULTIPLIER + 2 * PORT_TYPE_MULTIPLIER
-      rule["in_ports"] = [mid_port]
+      rule["in_ports"] = [out_table_in_port]
       tf_out["rules"].append(rule)
     else:
       for elem in rule["in_ports"]:
         rtr_ports.add(elem)
       tf_in["rules"].append(rule)
-  tf_in["ports"] = list(rtr_ports)
-  tf_out["ports"] = list(rtr_ports)
+  tf_in["ports"] = list(rtr_ports) + [in_table_out_port]
+  tf_out["ports"] = [p + 2 * PORT_TYPE_MULTIPLIER for p in rtr_ports] + [out_table_in_port]
   f_in = open(out_path+"/"+rtr+".in.rules.json",'w')
   f_out = open(out_path+"/"+rtr+".out.rules.json",'w')
   f_in.write(json.dumps(tf_in, indent=1))
