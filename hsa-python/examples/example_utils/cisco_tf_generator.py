@@ -129,4 +129,4 @@ def generate_transfer_functions(settings):
     tf.save_object_to_file("%s/topology.tf"%settings["output_path"])
     
   en = time()
-  print "completed in ",en - st, "seconds"
+  print "completed in",en - st, "seconds"
