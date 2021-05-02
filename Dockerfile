@@ -19,5 +19,6 @@ RUN apt-get $APT_CONFS install python2
 RUN apt-get $APT_CONFS install python2-dev
 
 COPY . $DIRPATH/
+RUN make -j -C net_plumber/Ubuntu-NetPlumber-Release clean
 RUN make -j -C net_plumber/Ubuntu-NetPlumber-Release all
 RUN cd hsa-python && bash setup.sh
