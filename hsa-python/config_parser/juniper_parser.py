@@ -9,11 +9,15 @@ Created on Mar 11, 2012
 @author: James Hongyi Zeng
 '''
 
+from utils.bytearray_utils import *
 from utils.helper import *
 from headerspace.tf import *
 from headerspace.hs import *
 from xml.etree.ElementTree import ElementTree
 import re
+
+def _byte_array_to_wildcard(byte_array):
+    return wildcard_create_from_string(byte_array_to_hs_string(byte_array))
 
 class juniperRouter(object):
     '''
@@ -460,7 +464,7 @@ class juniperRouter(object):
                             out_ports = [self.switch_id * self.SWITCH_ID_MULTIPLIER]
                         for match in matches:
                             self.set_field(match, "vlan", vlan, 0)
-                            next_rule = TF.create_standard_rule(in_ports, match, out_ports, None, None, file_name, lines)
+                            next_rule = TF.create_standard_rule(in_ports, _byte_array_to_wildcard(match), out_ports, None, None, file_name, lines)
                             tf.add_fwd_rule(next_rule)
                     # out acl entry
                     else:
@@ -471,13 +475,13 @@ class juniperRouter(object):
                                 in_ports = []
                                 for port in specified_ports:
                                     in_ports.append(port+self.PORT_TYPE_MULTIPLIER * self.INTERMEDIATE_PORT_TYPE_CONST)
-                                next_rule = TF.create_standard_rule(in_ports, match, out_ports, None, None, file_name, lines)
+                                next_rule = TF.create_standard_rule(in_ports, _byte_array_to_wildcard(match), out_ports, None, None, file_name, lines)
                                 tf.add_fwd_rule(next_rule)
                             else:
                                 for port in specified_ports:
                                     in_ports = [port+self.PORT_TYPE_MULTIPLIER * self.INTERMEDIATE_PORT_TYPE_CONST]
                                     out_ports = [port+self.PORT_TYPE_MULTIPLIER * self.OUTPUT_PORT_TYPE_CONST]
-                                    next_rule = TF.create_standard_rule(in_ports, match, out_ports, None, None, file_name, lines)
+                                    next_rule = TF.create_standard_rule(in_ports, _byte_array_to_wildcard(match), out_ports, None, None, file_name, lines)
                                     tf.add_fwd_rule(next_rule)
         
         # default rule for all vlans configured on this switch and un-vlan-tagged ports
@@ -489,7 +493,7 @@ class juniperRouter(object):
                 all_in_ports = []
                 for port in self.vlan_ports["vlan%d"%cnf_vlan]:
                     all_in_ports.append(self.port_to_id[port])
-                def_rule = TF.create_standard_rule(all_in_ports, match, intermediate_port, None, None, "", [])
+                def_rule = TF.create_standard_rule(all_in_ports, _byte_array_to_wildcard(match), intermediate_port, None, None, "", [])
                 tf.add_fwd_rule(def_rule)
         # ... un-vlan-tagged port
         all_in_ports = []
@@ -506,7 +510,7 @@ class juniperRouter(object):
         for port_id in all_in_ports:
             before_out_port = [port_id+self.PORT_TYPE_MULTIPLIER * self.INTERMEDIATE_PORT_TYPE_CONST]
             after_out_port = [port_id+self.PORT_TYPE_MULTIPLIER * self.OUTPUT_PORT_TYPE_CONST]
-            def_rule = TF.create_standard_rule(before_out_port, match, after_out_port , None, None, "", [])
+            def_rule = TF.create_standard_rule(before_out_port, _byte_array_to_wildcard(match), after_out_port , None, None, "", [])
             # James: No default output ACL
             #tf.add_fwd_rule(def_rule)
         
@@ -584,7 +588,7 @@ class juniperRouter(object):
                         m = re.split('\.',output_port)
                         # drop rules:
                         if output_port == "self":
-                            self_rule = TF.create_standard_rule(in_port,match,[],None,None,file_name,lines)
+                            self_rule = TF.create_standard_rule(in_port,_byte_array_to_wildcard(match),[],None,None,file_name,lines)
                             tf.add_fwd_rule(self_rule)
                         # non drop rules
                         else:
@@ -618,8 +622,8 @@ class juniperRouter(object):
                         # now set the fields
                         self.set_field(mask, 'vlan', 0, 0)
                         self.set_field(rewrite, 'vlan', vlan, 0)
-                        tf_rule = TF.create_standard_rule(in_port, match, out_ports, mask, rewrite,file_name,lines)
-                        tf.add_rewrite_rule_no_influence(tf_rule) 
+                        tf_rule = TF.create_standard_rule(in_port, _byte_array_to_wildcard(match), out_ports, _byte_array_to_wildcard(mask), _byte_array_to_wildcard(rewrite),file_name,lines)
+                        tf.add_rewrite_rule(tf_rule) 
                 
                 self.fwd_table[index] = []
                 #Invalidate fwd_rule      
@@ -739,4 +743,4 @@ class juniperRouter(object):
                                 mask_int = 32
                             else:
                                 mask_int = int(subnet_mask[1])
-                            self.port_subnets["%d"%vlan].append((ip_int, 32-mask_int, file_path, [], physical_interface_name))           
+                            self.port_subnets["%d"%vlan].append((ip_int, 32-mask_int, file_path, [], physical_interface_name))  
