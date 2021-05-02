@@ -101,6 +101,7 @@ int main(int argc, char* argv[]) {
   bool do_run_test = false;
   bool do_load_json_files = false;
   bool do_load_policy = false;
+  bool do_print_network = false;
 
   string log_config_file = "";
   string json_files_path = "";
@@ -123,6 +124,7 @@ int main(int argc, char* argv[]) {
       printf("  settings:\n");
       printf("\t --log4j-config <config file> : path to <log4j config> file.\n");
       printf("\t --hdr-len <length> : <length> of packet header (default is 1 byte).\n");
+      printf("\t --print : print plumbing network.\n");
       break;
     }
     if ( strcmp(argv[i],"--server") == 0 ) {
@@ -179,6 +181,10 @@ int main(int argc, char* argv[]) {
       }
       hdr_len = atoi(argv[++i]);
     }
+
+    if ( strncmp(argv[i], "--print", 7) == 0 ) {
+      do_print_network = true;
+    }
   }
   //configure log4cxx.
   if (log_config_file != "") {
@@ -216,6 +222,11 @@ int main(int argc, char* argv[]) {
     printf("Done! Cleaning up the NetPlumber\n");
     //delete N;
   }
+
+  if (do_print_network) {
+    N->print_plumbing_network();
+  }
+
   return 0;
 
 }
