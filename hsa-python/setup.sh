@@ -8,7 +8,7 @@ PYTHONPATH="$PYTHONPATH:$a"
 export PYTHONPATH
 fi
 cd c-bytearray
-python setup.py build
+python2 setup.py build
 cp build/lib.*/c_wildcard.so ../utils/.
 rm -rf build
 cd ..
