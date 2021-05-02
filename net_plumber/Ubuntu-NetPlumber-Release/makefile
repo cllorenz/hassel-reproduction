@@ -38,7 +38,7 @@ endif
 
 -include ../makefile.defs
 
-# Add inputs and outputs from these tool invocations to the build variables 
+# Add inputs and outputs from these tool invocations to the build variables
 
 # All Target
 all: net_plumber
@@ -47,7 +47,7 @@ all: net_plumber
 net_plumber: $(OBJS) $(USER_OBJS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: GCC C++ Linker'
-	g++  -o "net_plumber" $(OBJS) $(USER_OBJS) $(LIBS)
+	g++  -o "net_plumber" $(OBJS) $(USER_OBJS) $(LIBS) -lpthread
 	@echo 'Finished building target: $@'
 	@echo ' '
 
