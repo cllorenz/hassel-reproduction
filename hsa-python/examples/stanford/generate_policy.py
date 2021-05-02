@@ -3,10 +3,12 @@ Created on Sep 18, 2012
 
 @author: peymank
 '''
-from examples.utils.net_plumber_policy_maker import NetPlumberReachabilityPolicyGenerator
+from examples.example_utils.net_plumber_policy_maker import NetPlumberReachabilityPolicyGenerator
 import json 
+import sys
 
-in_path = "stanford_json_rules"
+in_path = sys.argv[1]
+#in_path = "stanford_json_rules"
 PORT_TYPE_MULTIPLIER = 10000
 SWITCH_ID_MULTIPLIER = 100000
 rtr_names = ["bbra_rtr",
@@ -54,6 +56,6 @@ for i in range(len(rtr_names)):
   commands["commands"].extend(data)
   
 print "number of commands ",len(commands["commands"])
-f = open("policy.json",'w')
+f = open("%s/policy.json" % in_path,'w')
 f.write(json.dumps(commands, indent=1))
 f.close()    

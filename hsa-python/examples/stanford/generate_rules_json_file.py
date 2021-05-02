@@ -3,7 +3,7 @@ Created on Sep 15, 2012
 
 @author: peyman kazemian
 '''
-from examples.utils.network_loader import load_network
+from examples.example_utils.network_loader import load_network
 from config_parser.cisco_router_parser import cisco_router
 from utils.wildcard import wildcard_create_bit_repeat
 from utils.wildcard_utils import set_header_field
@@ -12,8 +12,11 @@ from time import time
 import json
 from headerspace.applications import find_reachability,print_paths
 
-in_path = "stanford_json_rules/tf_rules"
-out_path = "stanford_json_rules"
+import sys
+in_path = sys.argv[1]
+out_path = sys.argv[2]
+#in_path = "stanford_json_rules/tf_rules"
+#out_path = "stanford_json_rules"
 
 PORT_TYPE_MULTIPLIER = 10000
 SWITCH_ID_MULTIPLIER = 100000
@@ -51,8 +54,13 @@ for rtr_name in rtr_names:
   tf_in = {"rules":[], "ports":[], "id":table_id*10}
   tf_mid = {"rules":[], "ports":[], "id":table_id*10+1}
   tf_out = {"rules":[], "ports":[], "id":table_id*10+2}
-  topology["topology"].append({"src":table_id * SWITCH_ID_MULTIPLIER, "dst":table_id * SWITCH_ID_MULTIPLIER + 2 * PORT_TYPE_MULTIPLIER})
+
+  in_table_out_port = table_id * SWITCH_ID_MULTIPLIER
+  mid_table_in_port = table_id * SWITCH_ID_MULTIPLIER + 2 * PORT_TYPE_MULTIPLIER
+
+  topology["topology"].append({"src":in_table_out_port, "dst":mid_table_in_port})
   rtr_ports = set()
+
   for rule in tf["rules"]:
     rule.pop("line")
     rule.pop("file")
@@ -61,28 +69,42 @@ for rtr_name in rtr_names:
     rule.pop("inverse_match")
     rule.pop("inverse_rewrite")
     rule.pop("id")
+
+    if len(rule["in_ports"]) == 0:
+        print "skip rule without in_ports: %s" % rule
+        continue
+
+    # x00000 = port -> rules for the mid table, output ports have the form x1000y
     if (rule["in_ports"][0] % SWITCH_ID_MULTIPLIER == 0):
-      mid_port = table_id * SWITCH_ID_MULTIPLIER + 2 * PORT_TYPE_MULTIPLIER
+      # fwd rules
+      mid_port = mid_table_in_port #table_id * SWITCH_ID_MULTIPLIER + 2 * PORT_TYPE_MULTIPLIER
       rule["in_ports"] = [mid_port]
-      tf_mid["rules"].insert(0,rule)
+      for elem in rule['out_ports']:
+        rtr_ports.add(elem-PORT_TYPE_MULTIPLIER)
+      tf_mid["rules"].append(rule)
       
+    # x00000 < port < x10000 -> normal rules for the ingress table, output port is always x00000
     elif (rule["in_ports"][0] % SWITCH_ID_MULTIPLIER < PORT_TYPE_MULTIPLIER):
       #input rules
       for elem in rule["in_ports"]:
         rtr_ports.add(elem)
-      tf_in["rules"].insert(0,rule)
+      tf_in["rules"].append(rule)
+    # port >= x10000 -> rules for the egress table, output ports have the form x2000y
     else:
       # output rules
       rule_in_ports = []
       for p in rule["in_ports"]:
-        rule_in_ports.append(p+PORT_TYPE_MULTIPLIER)
+        rule_in_ports.append(p+2*PORT_TYPE_MULTIPLIER)
       rule["in_ports"] = rule_in_ports
-      tf_out["rules"].insert(0,rule)
+      for elem in rule["out_ports"]:
+        rtr_ports.add(elem-2*PORT_TYPE_MULTIPLIER)
+      tf_out["rules"].append(rule)
       
-  tf_in["ports"] = list(rtr_ports)
-  tf_out["ports"] = list(rtr_ports)
-  for port in rtr_ports:
-    topology["topology"].append({"src":port+PORT_TYPE_MULTIPLIER, "dst":port+2*PORT_TYPE_MULTIPLIER})
+  tf_in["ports"] = list(rtr_ports) + [in_table_out_port]
+  tf_mid["ports"] = [p+PORT_TYPE_MULTIPLIER for p in list(rtr_ports)] + [mid_table_in_port]
+  tf_out["ports"] = [p+2*PORT_TYPE_MULTIPLIER for p in list(rtr_ports)] + [p+3*PORT_TYPE_MULTIPLIER for p in list(rtr_ports)]
+  for port in rtr_ports: # add mid egress port -> out in port
+    topology["topology"].append({"src":port+PORT_TYPE_MULTIPLIER, "dst":port+3*PORT_TYPE_MULTIPLIER})
   f_in = open(out_path+"/"+rtr_name+".in.rules.json",'w')
   f_mid = open(out_path+"/"+rtr_name+".mid.rules.json",'w')
   f_out = open(out_path+"/"+rtr_name+".out.rules.json",'w')

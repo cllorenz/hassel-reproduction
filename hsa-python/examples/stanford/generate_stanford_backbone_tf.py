@@ -11,6 +11,10 @@ Created on Aug 10, 2011
 
 from examples.example_utils.cisco_tf_generator import generate_transfer_functions
 
+import sys
+in_path = sys.argv[1]
+out_path = sys.argv[2]
+
 settings = {"rtr_names":["bbra_rtr",
              "bbrb_rtr",
              "boza_rtr",
@@ -28,8 +32,8 @@ settings = {"rtr_names":["bbra_rtr",
              "yoza_rtr",
              "yozb_rtr",
              ],
-            "input_path":"Stanford_backbone",
-            "output_path":"tf_stanford_backbone",
+            "input_path":in_path,
+            "output_path":out_path,
             "topology":[("bbra_rtr","te7/3","goza_rtr","te2/1"),
             ("bbra_rtr","te7/3","pozb_rtr","te3/1"),
             ("bbra_rtr","te1/3","bozb_rtr","te3/1"),
@@ -68,6 +72,7 @@ settings = {"rtr_names":["bbra_rtr",
             ("yoza_rtr","te1/1","yozb_rtr","te1/3"),
             ("yoza_rtr","te1/2","yozb_rtr","te1/2")],
             "replace_vlans":[None,None,None,None,(83,580),(83,580),None,None,None,None,None,None,(83,580),(83,580),None,None],
+#            "optimize_fwd_table" : False
             }
 generate_transfer_functions(settings)
 
