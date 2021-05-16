@@ -7,6 +7,7 @@ src_dir = sys.argv[1]
 dst_dir = src_dir
 
 config_json = json.load(open("%s/config.json" % src_dir))
+with_paths = config_json.get("with_paths", False)
 tables = config_json["tables"]
 hdr_len = config_json["length"]
 
@@ -44,20 +45,22 @@ sources = {
 }
 
 # add and connect probes
+source_commands = []
 for tid, table in enumerate(tables, start=1):
     table_ports = table_out_ports[table]
     table_probes = probes[table]
 
     for table, table_probe in zip(tables, table_probes):
+        _sid, source_port = sources[table]
         source_port = first_in_port[table]
         pid, probe_port = table_probe
-        commands.append({
+        source_commands.append({
             "method" : "add_source_probe",
             "params" : {
                 "filter" : { "type" : "true" },
 				"match" : ','.join(["xxxxxxxx"]*hdr_len),
 				"ports" : [ probe_port ],
-				"test" :
+				"test" : # complex expression if paths should be checked
 				{
 					"type" : "path",
                     "pathlets" : [
@@ -66,7 +69,7 @@ for tid, table in enumerate(tables, start=1):
                             "ports" : [ source_port ]
                         }
                     ]
-				},
+				} if with_paths else { "type" : "true" },
                 "mode" : "existential",
                 "id" : pid
             },
@@ -74,13 +77,16 @@ for tid, table in enumerate(tables, start=1):
 
         # connect all egress ports to probe
         for table_port in table_out_ports[table]:
-            commands.append({
+            source_commands.append({
                 "method" : "add_link",
                 "params" : {
                     "from_port" : table_port,
                     "to_port" : probe_port
                 }
             })
+
+        # skip further probes if just the simple check is used
+        if not with_paths: break
 
 
 # add and connect sources
@@ -101,7 +107,7 @@ for tid, table in enumerate(tables, start=1):
 		},
 	})
 
-    # connect source to one random ingress port
+    # connect source to first ingress port
     table_port = first_in_port[table]
     commands.append({
         "method" : "add_link",
@@ -111,5 +117,6 @@ for tid, table in enumerate(tables, start=1):
         }
     })
 
+commands.extend(source_commands)
 
 json.dump({ 'commands' : commands }, open("%s/policy.json" % src_dir, 'w'), indent=2)
